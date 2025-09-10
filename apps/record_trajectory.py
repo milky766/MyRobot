@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #source /home/hosodalab2/Desktop/MyRobot/.venv-fix/bin/activate
 
-#/home/hosodalab2/Desktop/MyRobot/.venv-fix/bin/python -u -m apps.record_trajectory -T 20 --interval-ms 33.33333333
+#uv run python -m apps.record_trajectory -T 30 -v
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _capture_zero(enc, invert: bool, ppr: int) -> float:
+def _capture_zero(enc, invert: bool) -> float:
     if enc is None:
         return 0.0
     t0 = time.perf_counter()
@@ -129,7 +129,7 @@ def main() -> int:
     enc_zero = args.zero_deg
     try:
         if args.zero_at_start and enc is not None and enc_zero is None:
-            enc_zero = _capture_zero(enc, args.encoder_invert, args.ppr)
+            enc_zero = _capture_zero(enc, args.encoder_invert)
             print(f"[INFO] Captured encoder zero: {enc_zero:.3f} deg", flush=True)
     except Exception:
         pass

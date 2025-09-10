@@ -12,6 +12,15 @@ uv run python apps/range_of_motion.py --u0 -100 --u1 100 --duration 12 --start-d
 """
 
 import argparse, os, time  # added time
+import sys
+import glob
+from pathlib import Path
+import csv
+
+# plotting: import lazily to avoid startup/blocking during run
+plt = None
+np = None
+
 from affetto_nn_ctrl.hw.integrated_session import IntegratedConfig, IntegratedSession
 
 def build_parser():
@@ -31,35 +40,197 @@ def build_parser():
     ap.add_argument('--tension', action='store_true', help='Enable LDC tension sensors scan')
     ap.add_argument('--csv-name', type=str, default=None, help='Custom CSV filename (stored under data/integrated_sensor)')
     ap.add_argument('--start-delay', type=float, default=0.0, help='Seconds to wait after opening session (after zero capture) before starting ramp')  # new
+    ap.add_argument('--ramp-s', type=float, default=1.0, help='Seconds to perform smooth transitions between targets')
     return ap
 
-def _run_once_with_cfg(cfg: IntegratedConfig, start_delay: float):
+
+def _run_once_with_cfg(cfg: IntegratedConfig, start_delay: float, ramp_s: float):
     sess = IntegratedSession(cfg)
     sess.open()
-    if start_delay>0:
-        print(f"[INFO] Start delay {start_delay:.2f}s before ramp...")
-        t_end=time.time()+start_delay
-        while time.time()<t_end:
+    # --- New: force center then capture encoder zero at center ---
+    center = (cfg.min_pct + cfg.max_pct) / 2.0
+    try:
+        if sess.dac is not None:
+            print(f"[INFO] Centering valves to {center:.1f}%/{center:.1f}% (A/B) for zero capture...", flush=True)
+            sess.dac.set_channels(center, center)
+    except Exception:
+        pass
+    hold_s = start_delay if start_delay > 0 else 0.6
+    if hold_s > 0:
+        print(f"[INFO] Holding center for {hold_s:.2f}s...", flush=True)
+        t_end = time.time() + hold_s
+        while time.time() < t_end:
             if cfg.encoder_enable and sess.enc is not None:
                 try:
                     sess.enc.poll()
                 except Exception:
                     pass
             time.sleep(0.02)
-        if cfg.encoder_enable and sess.enc is not None and sess.enc_zero_offset is not None:
+    if cfg.encoder_enable and cfg.encoder_zero_on_start and sess.enc is not None:
+        try:
+            for _ in range(5):
+                sess.enc.poll(); time.sleep(0.02)
+            val = sess.enc.degrees()
+            if val is not None:
+                if cfg.encoder_invert:
+                    val = -val
+                sess.enc_zero_offset = val
+                print(f"[INFO] Encoder zero captured at center: {val:.3f} deg -> set to 0.000")
+        except Exception:
+            pass
+
+    # Helper: smooth linear ramp between two valve setpoints
+    def smooth_ramp(a_from: float, b_from: float, a_to: float, b_to: float, seconds: float):
+        if sess.dac is None:
+            return
+        interval = max(1, cfg.interval_ms)
+        steps = max(1, int(seconds * 1000.0 / interval))
+        t0 = time.perf_counter()
+        for i in range(1, steps + 1):
+            frac = i / steps
+            a = a_from + (a_to - a_from) * frac
+            b = b_from + (b_to - b_from) * frac
             try:
-                sess.enc.poll()
-                val = sess.enc.degrees()
-                if val is not None:
-                    if cfg.encoder_invert:
-                        val = -val
-                    if sess.enc_zero_offset is not None:
-                        val = val - sess.enc_zero_offset
-                    print(f"[INFO] Pre-actuation encoder (after delay, before first valve command): {val:.3f} deg")
+                sess.dac.set_channels(a, b)
             except Exception:
                 pass
-    for _ in sess.run():
+            # Poll sensors for live log
+            try:
+                if sess.enc is not None:
+                    sess.enc.poll()
+                    cur = sess.enc.degrees()
+                    if cur is not None:
+                        if cfg.encoder_invert:
+                            cur = -cur
+                        if sess.enc_zero_offset is not None:
+                            cur = cur - sess.enc_zero_offset
+                        sess.last_enc_deg = cur
+                sess._poll_between()
+            except Exception:
+                pass
+            # print and write CSV entry using Session helpers
+            elapsed = time.perf_counter() - t0
+            try:
+                sess._print_verbose(elapsed, a, b)
+                sys.stdout.flush()
+            except Exception:
+                pass
+            try:
+                sess._write_csv(elapsed, a, b, sess.last_enc_deg)
+            except Exception:
+                pass
+            time.sleep(interval / 1000.0)
+
+    # perform the requested smooth transitions slowly
+    print(f"[INFO] Smoothly ramping center -> min (first target) over {ramp_s:.2f}s", flush=True)
+    first_a = cfg.min_pct
+    first_b = cfg.max_pct
+    # ramp from center to first target
+    smooth_ramp(center, center, first_a, first_b, ramp_s)
+
+    print("[INFO] Sequence: (60,60) -> (20,100) -> (100,20) -> (20,100)", flush=True)
+    # Start the built-in u_ramp_roundtrip which will perform min->max->min
+    for i, _ in enumerate(sess.run()):
+        # flush periodically to ensure terminal shows activity
+        if i % 1 == 0:
+            try:
+                sys.stdout.flush()
+            except Exception:
+                pass
+        # tiny sleep to yield to I/O
+        time.sleep(0)
         pass
+
+    # --- after session finished: find CSV and plot if possible ---
+    try:
+        # import plotting libraries lazily (avoid blocking during run)
+        try:
+            import matplotlib.pyplot as plt_local
+            import numpy as np_local
+            plt = plt_local
+            np = np_local
+        except Exception:
+            plt = None
+            np = None
+        # determine csv path: prefer cfg.csv_path, else pick latest file in data/integrated_sensor
+        if cfg.csv_path:
+            csvp = Path(cfg.csv_path)
+        else:
+            data_dir = Path('data/integrated_sensor')
+            files = sorted(list(data_dir.glob('*.csv')), key=lambda p: p.stat().st_mtime) if data_dir.exists() else []
+            csvp = files[-1] if files else None
+        if csvp is None:
+            print('[WARN] No CSV found to plot.', flush=True)
+        else:
+            print(f'[INFO] Plotting CSV: {csvp}', flush=True)
+            if plt is None:
+                print('[WARN] matplotlib not available; skipping plot.', flush=True)
+            else:
+                # Read CSV rows
+                times = []
+                a_vals = []
+                b_vals = []
+                enc_vals = []
+                with open(csvp, 'r') as f:
+                    rdr = csv.reader(f)
+                    for row in rdr:
+                        if not row:
+                            continue
+                        # skip non-numeric header lines
+                        try:
+                            ms = float(row[0])
+                        except Exception:
+                            continue
+                        times.append(ms / 1000.0)
+                        try:
+                            a_vals.append(float(row[1]))
+                        except Exception:
+                            a_vals.append(float('nan'))
+                        try:
+                            b_vals.append(float(row[2]))
+                        except Exception:
+                            b_vals.append(float('nan'))
+                        # encoder may be last column
+                        try:
+                            enc = float(row[-1])
+                            enc_vals.append(enc)
+                        except Exception:
+                            # no encoder column
+                            pass
+                fig, ax1 = plt.subplots(figsize=(8, 4))
+                if a_vals and b_vals:
+                    ax1.plot(times, a_vals, label='A %', color='C0')
+                    ax1.plot(times, b_vals, label='B %', color='C1')
+                    ax1.set_ylabel('Valve %')
+                    ax1.legend(loc='upper left')
+                if enc_vals:
+                    ax2 = ax1.twinx()
+                    ax2.plot(times[:len(enc_vals)], enc_vals, label='Encoder deg', color='C2')
+                    ax2.set_ylabel('Encoder (deg)')
+                    # combine legends
+                    lines1, labels1 = ax1.get_legend_handles_labels()
+                    lines2, labels2 = ax2.get_legend_handles_labels()
+                    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+                ax1.set_xlabel('Time (s)')
+                # save
+                out_png = csvp.with_suffix('.png')
+                fig.tight_layout()
+                fig.savefig(out_png, dpi=150)
+                plt.close(fig)
+                print(f'[INFO] Plot saved: {out_png}', flush=True)
+    except Exception as e:
+        print(f'[WARN] Plotting failed: {e}', flush=True)
+    finally:
+        # IntegratedSession exposes _cleanup() rather than a public close();
+        # call _cleanup() if present, otherwise fall back to close().
+        try:
+            if hasattr(sess, '_cleanup'):
+                sess._cleanup()
+            elif hasattr(sess, 'close'):
+                sess.close()
+        except Exception:
+            pass
+
 
 def main():
     ap=build_parser(); args=ap.parse_args()
@@ -78,7 +249,7 @@ def main():
                            u_ramp_u0=u0, u_ramp_u1=u1, u_ramp_duration=args.duration,
                            csv_path=args.csv_name, verbose=True)
     print(f"[INFO] Running continuous roundtrip: {args.min_pct:.1f}% -> {args.max_pct:.1f}% -> {args.min_pct:.1f}% (u: {u0:.1f} -> {u1:.1f} -> {u0:.1f})")
-    _run_once_with_cfg(cfg, args.start_delay)
+    _run_once_with_cfg(cfg, args.start_delay, args.ramp_s)
 
     print('[INFO] Finished round-trip u_ramp scan.')
     return 0

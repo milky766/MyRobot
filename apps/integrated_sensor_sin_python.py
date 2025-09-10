@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Python equivalent of integrated_sensor_sin.cpp (DAC direct control)
-/home/hosodalab2/Desktop/MyRobot/.venv-fix/bin/python apps/integrated_sensor_sin_python.py
+env PYTHONPATH=/home/hosodalab2/Desktop/MyRobot/src uv run python -u apps/integrated_sensor_sin_python.py --encoder-invert --center-hold-s 1.0
 """
 import time
 import math
 import os
 import signal
 from datetime import datetime
+import argparse
+import sys, pathlib
+from pathlib import Path
+import csv
 
 # Remove IntegratedSession usage; use local DAC like valve_sine_test
 try:
@@ -21,7 +25,6 @@ except Exception:  # noqa: BLE001
     Direction = Value = None  # type: ignore
 # New: encoder & LDC imports
 # Ensure local 'src' is on sys.path so we can import affetto_nn_ctrl.* when running from workspace
-import sys, pathlib
 _PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 _SRC_PATH = _PROJECT_ROOT / 'src'
 if str(_SRC_PATH) not in sys.path:
@@ -41,7 +44,8 @@ except Exception:  # noqa: BLE001
 DUTY_CENTER = 60.0
 DUTY_AMPLITUDE = 40.0
 CYCLE_SEC = 10.0
-TOTAL_SEC = 10.0
+# Run exactly two cycles by default
+TOTAL_SEC = CYCLE_SEC * 2
 LOOP_INTERVAL_MS = 50
 
 # SPI/DAC constants (match valve_sine_test)
@@ -180,12 +184,12 @@ class Dac8564:
 def calculate_valve_a_opening(time_sec: float) -> float:
     sin_value = math.sin(2.0 * math.pi * time_sec / CYCLE_SEC - math.pi / 2.0)
     opening = DUTY_CENTER + DUTY_AMPLITUDE * sin_value
-    return max(0.0, min(95.0, opening))
+    return max(0.0, min(100.0, opening))
 
 def calculate_valve_b_opening(time_sec: float) -> float:
     sin_value = math.sin(2.0 * math.pi * time_sec / CYCLE_SEC + math.pi / 2.0)
     opening = DUTY_CENTER + DUTY_AMPLITUDE * sin_value
-    return max(0.0, min(95.0, opening))
+    return max(0.0, min(100.0, opening))
 
 def create_timestamp() -> str:
     return datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -285,6 +289,12 @@ def _init_csv(path_hint: str | None, detected_ldc_addrs: list[int], has_enc: boo
         return None, None
 
 def main():
+    # CLI: encoder invert and center-hold seconds for zero capture
+    ap = argparse.ArgumentParser(description='Direct DAC sine with optional encoder invert and zero capture at center (60/60)')
+    ap.add_argument('--encoder-invert', action='store_true', help='Invert encoder sign')
+    ap.add_argument('--center-hold-s', type=float, default=0.6, help='Seconds to hold at 60/60 before starting; used to capture encoder zero')
+    args = ap.parse_args()
+
     print('Python sine wave control starting (direct DAC)...')
     dac = Dac8564(SPI_BUS, SPI_DEV, GPIO_CS_DAC)
     try:
@@ -309,6 +319,7 @@ def main():
     enc = None
     last_enc_deg = None
     last_enc_print = 0.0
+    enc_zero_offset = None
     if EncoderSimple is not None:
         try:
             enc = EncoderSimple(ENC_CHIP, ENC1A, ENC1B)  # type: ignore[call-arg]
@@ -316,6 +327,43 @@ def main():
         except Exception as e:  # noqa: BLE001
             print(f'[WARN] Encoder init failed: {e}')
             enc = None
+
+    # Center valves and capture encoder zero at center (pre-actuation for sine)
+    try:
+        dac.set_channels(DUTY_CENTER, DUTY_CENTER)
+        print(f'[INFO] Centering valves to {DUTY_CENTER:.1f}%/{DUTY_CENTER:.1f}% for zero capture...')
+        t_end = time.perf_counter() + max(0.0, float(args.center_hold_s))
+        # poll encoder during hold for stable reading
+        while time.perf_counter() < t_end:
+            if enc is not None:
+                try:
+                    enc.poll()
+                except Exception:  # noqa: BLE001
+                    pass
+            time.sleep(0.02)
+        if enc is not None:
+            try:
+                # take multiple samples for robustness
+                vals = []
+                for _ in range(5):
+                    try:
+                        enc.poll()
+                    except Exception:
+                        pass
+                    v = enc.degrees()  # type: ignore[union-attr]
+                    if v is not None:
+                        vals.append(v)
+                    time.sleep(0.02)
+                if vals:
+                    raw = sum(vals) / len(vals)
+                    if args.encoder_invert:
+                        raw = -raw
+                    enc_zero_offset = raw
+                    print(f'[INFO] Encoder zero captured at center: {raw:.3f} deg -> set to 0.000')
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        pass
 
     # New: init tension sensors (LDC1614)
     ldc_bus = None
@@ -383,7 +431,16 @@ def main():
                     enc.poll()
                 except Exception:  # noqa: BLE001
                     pass
-                current_enc_deg = enc.degrees()  # type: ignore[union-attr]
+                try:
+                    current_enc_deg = enc.degrees()  # type: ignore[union-attr]
+                except Exception:
+                    current_enc_deg = None
+                # apply invert and zero offset if available
+                if current_enc_deg is not None:
+                    if args.encoder_invert:
+                        current_enc_deg = -current_enc_deg
+                    if enc_zero_offset is not None:
+                        current_enc_deg = current_enc_deg - enc_zero_offset
                 if now - last_enc_print >= ENCODER_PRINT_INTERVAL:
                     last_enc_deg = current_enc_deg
                     last_enc_print = now
@@ -460,6 +517,70 @@ def main():
                 pass
             if csv_path:
                 print(f'[INFO] CSV saved: {csv_path}')
+                # Try to plot the CSV lazily (matplotlib may not be installed on uv env)
+                try:
+                    try:
+                        import matplotlib
+                        matplotlib.use('Agg')
+                        import matplotlib.pyplot as plt_local
+                        import numpy as np_local
+                        plt = plt_local
+                        np = np_local
+                    except Exception as e:
+                        plt = None
+                        np = None
+                    if plt is not None:
+                        # read CSV and plot valve % and encoder
+                        times = []
+                        a_vals = []
+                        b_vals = []
+                        enc_vals = []
+                        try:
+                            with open(csv_path, 'r') as f:
+                                rdr = csv.reader(f)
+                                for row in rdr:
+                                    if not row:
+                                        continue
+                                    try:
+                                        ms = float(row[0])
+                                    except Exception:
+                                        continue
+                                    times.append(ms/1000.0)
+                                    try:
+                                        a_vals.append(float(row[1]))
+                                    except Exception:
+                                        a_vals.append(np.nan)
+                                    try:
+                                        b_vals.append(float(row[2]))
+                                    except Exception:
+                                        b_vals.append(np.nan)
+                                    try:
+                                        enc_vals.append(float(row[-1]))
+                                    except Exception:
+                                        pass
+                            fig, ax1 = plt.subplots(figsize=(8,4))
+                            if a_vals and b_vals:
+                                ax1.plot(times, a_vals, label='A %', color='C0')
+                                ax1.plot(times, b_vals, label='B %', color='C1')
+                                ax1.set_ylabel('Valve %')
+                                ax1.legend(loc='upper left')
+                            if enc_vals:
+                                ax2 = ax1.twinx()
+                                ax2.plot(times[:len(enc_vals)], enc_vals, label='Encoder deg', color='C2')
+                                ax2.set_ylabel('Encoder (deg)')
+                                lines1, labels1 = ax1.get_legend_handles_labels()
+                                lines2, labels2 = ax2.get_legend_handles_labels()
+                                ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+                            ax1.set_xlabel('Time (s)')
+                            out_png = Path(csv_path).with_suffix('.png')
+                            fig.tight_layout()
+                            fig.savefig(out_png, dpi=150)
+                            plt.close(fig)
+                            print(f'[INFO] Plot saved: {out_png}')
+                        except Exception as e:
+                            print(f'[WARN] Plotting failed: {e}')
+                except Exception:
+                    pass
         print('Done.')
     return 0
 

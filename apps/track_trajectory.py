@@ -4,7 +4,7 @@ from __future__ import annotations
 # Rewritten to use MyRobot hardware stack (apps/myrobot_lib) instead of affetto controller.
 # Core algorithm is preserved: load reference trajectory -> generate qdes/dqdes over time ->
 # real-time loop to track with PID -> log data -> repeat per reference file.
-#/home/hosodalab2/Desktop/MyRobot/.venv-fix/bin/python -m apps.track_trajectory data/myrobot_model/trained_model.joblib -r data/recorded_trajectory/csv/reference_trajectory_3.csv -n 1 --interval-ms 33.33333333 -T 30
+#/home/hosodalab2/Desktop/MyRobot/.venv-fix/bin/python -m apps.track_trajectory data/myrobot_model_MixAll/trained_model.joblib -r data/recorded_trajectory/csv/reference_trajectory_6.csv -n 1 --interval-ms 33.33333333 -T 30
 
 import argparse
 import csv
