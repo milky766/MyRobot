@@ -1,0 +1,17 @@
+[INFO] DAC opened
+[INFO] ADC opened
+[INFO] Encoder enabled
+[INFO] LDC sensors: 2
+[INFO] Captured encoder zero (main): 0.000 deg
+[INFO] Sensors: ADC=yes LDC=2(0x2B,0x2A) Encoder=yes
+[INFO] Run 1/100
+[DEBUG] Pre-valve encoder raw (run 1): -0.000 deg
+[INFO] Captured encoder zero for run 1: 0.088 deg (offset from pre-valve: 0.088 deg)
+[DEBUG] Trajectory params: {'q0': -0.0, 'q_limit': (0.0, 100.0), 'q_range': (-10.0, 30.0), 'low': -10.0, 'high': 30.0, 'update_q_delta': (0.0, 30.0), 't_range_pass': (1.0, 2.0)}
+[INFO] CSV saved: myrobot/hirai/hirai/csv/20250830/trapezoid/middle/motion_data_003.csv
+[INFO] Plot saved: myrobot/hirai/hirai/csv/20250830/trapezoid/middle/motion_data_003.png
+[INFO] Plot saved: myrobot/hirai/hirai/graph/20250830/trapezoid/middle/motion_data_003.png
+[INFO] Run 2/100
+[DEBUG] Pre-valve encoder raw (run 2): 17.490 deg
+[INFO] Captured encoder zero for run 2: 17.490 deg (offset from pre-valve: 0.000 deg)
+[DEBUG] Trajectory params: {'q0': -0.0, 'q_limit': (0.0, 100.0), 'q_range': (-10.0, 30.0), 'low': -10.0, 'high': 30.0, 'update_q_delta': (0.0, 30.0), 't_range_pass': (1.0, 2.0)}

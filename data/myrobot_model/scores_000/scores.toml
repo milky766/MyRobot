@@ -1,0 +1,54 @@
+[model.performance]
+model_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/trained_model.joblib"
+score = { mean = 0.9841015075202242, std = 0.005639677588880289, argmax = 1, argmin = 9 }
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_021.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_000"
+score = 0.9904399764924903
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_071.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_001"
+score = 0.9909075328811535
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_092.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_002"
+score = 0.9803361871268943
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_023.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_003"
+score = 0.9846287410988186
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_079.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_004"
+score = 0.9865817035727972
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_031.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_005"
+score = 0.976932439153319
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_066.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_006"
+score = 0.9855770235752721
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_072.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_007"
+score = 0.9869508525940304
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_094.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_008"
+score = 0.9865321965179984
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_038.csv"
+plot_path = "../data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/scores_000/plots_009"
+score = 0.9721284221894675
+

@@ -1,0 +1,51 @@
+2025-08-31 22:13:59,872 (event_logging:164) [DEBUG]: Start event logging
+2025-08-31 22:13:59,872 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-08-31 22:13:59,872 (event_logging:166) [DEBUG]: Log filename: /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/train_model.log
+2025-08-31 22:13:59,873 (event_logging:168) [DEBUG]: Command: python apps/train_model.py -vv data/myrobot/hirai/csv/20250831/step/fast -j 5 --train-size 0.25 --seed 123 -m apps/config/model.toml -a preview-ref.step3 -s std -r mlp --include-tension --label tau_sweep_hearing.seed123.step3 --overwrite
+2025-08-31 22:13:59,873 (train_model:273) [INFO]: Output directory: /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359
+2025-08-31 22:13:59,873 (data_handling:162) [DEBUG]: Directory created: /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359
+2025-08-31 22:13:59,874 (data_handling:152) [DEBUG]: Symlink created: /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/latest -> /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359
+2025-08-31 22:13:59,875 (data_handling:162) [DEBUG]: Directory created: /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/config
+2025-08-31 22:13:59,883 (data_handling:180) [DEBUG]: Model config copied: None -> /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/config
+2025-08-31 22:13:59,884 (train_model:276) [DEBUG]: Parsed arguments: Namespace(base_dir='/mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data', joints=['5'], datasets=['data/myrobot/hirai/csv/20250831/step/fast'], glob_pattern='**/*.csv', train_size=0.25, test_size=None, seed=123, shuffle=True, split_in_each_directory=False, model_config='apps/config/model.toml', adapter='preview-ref.step3', scaler='std', regressor='mlp', include_tension=True, output=None, output_prefix='trained_model', overwrite=True, label='tau_sweep_hearing.seed123.step3', sublabel=None, split_by_date=True, specify_date=None, make_latest_symlink=True, verbose=2)
+2025-08-31 22:13:59,884 (train_model:60) [DEBUG]: Resolved active joints: [5]
+2025-08-31 22:13:59,887 (train_model:64) [DEBUG]: Model config file loaded: apps/config/model.toml
+2025-08-31 22:13:59,888 (train_model:67) [DEBUG]: Loading datasets with following condition:
+2025-08-31 22:13:59,888 (train_model:68) [DEBUG]:      Path list: ['data/myrobot/hirai/csv/20250831/step/fast']
+2025-08-31 22:13:59,888 (train_model:69) [DEBUG]:   glob pattern: **/*.csv
+2025-08-31 22:13:59,908 (model_utility:667) [DEBUG]: Loading datasets from ['data/myrobot/hirai/csv/20250831/step/fast/motion_data_063.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_029.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_069.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_027.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_061.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_045.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_075.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_062.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_006.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_008.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_033.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_044.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_012.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_016.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_073.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_076.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_086.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_049.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_005.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_046.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_022.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_091.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_035.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_025.csv', 'data/myrobot/hirai/csv/20250831/step/fast/motion_data_077.csv']
+2025-08-31 22:14:00,272 (model_utility:671) [INFO]: 25 datasets loaded in total
+2025-08-31 22:14:00,272 (model_utility:588) [DEBUG]: Loaded data adapter: PreviewRef(PreviewRefParams(active_joints=[5], dt=0.03333333333, ctrl_step=1, preview_step=3, include_dqdes=False, use_indexed_columns=False, include_tension=True))
+2025-08-31 22:14:00,272 (train_model:86) [INFO]: Adapter include_tension overridden: True
+2025-08-31 22:14:00,273 (model_utility:598) [DEBUG]: Loaded scaler: StandardScaler()
+2025-08-31 22:14:00,276 (model_utility:606) [DEBUG]: Loaded regressor: MLPRegressor()
+2025-08-31 22:14:00,276 (train_model:92) [INFO]: Training model...
+2025-08-31 22:14:00,282 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_063.csv
+2025-08-31 22:14:00,284 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_029.csv
+2025-08-31 22:14:00,286 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_069.csv
+2025-08-31 22:14:00,288 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_027.csv
+2025-08-31 22:14:00,291 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_061.csv
+2025-08-31 22:14:00,293 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_045.csv
+2025-08-31 22:14:00,294 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_075.csv
+2025-08-31 22:14:00,298 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_062.csv
+2025-08-31 22:14:00,300 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_006.csv
+2025-08-31 22:14:00,303 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_008.csv
+2025-08-31 22:14:00,307 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_033.csv
+2025-08-31 22:14:00,310 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_044.csv
+2025-08-31 22:14:00,314 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_012.csv
+2025-08-31 22:14:00,317 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_016.csv
+2025-08-31 22:14:00,321 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_073.csv
+2025-08-31 22:14:00,325 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_076.csv
+2025-08-31 22:14:00,329 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_086.csv
+2025-08-31 22:14:00,333 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_049.csv
+2025-08-31 22:14:00,337 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_005.csv
+2025-08-31 22:14:00,343 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_046.csv
+2025-08-31 22:14:00,348 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_022.csv
+2025-08-31 22:14:00,352 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_091.csv
+2025-08-31 22:14:00,358 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_035.csv
+2025-08-31 22:14:00,363 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_025.csv
+2025-08-31 22:14:00,368 (model_utility:693) [DEBUG]: Loaded dataset: data/myrobot/hirai/csv/20250831/step/fast/motion_data_077.csv
+2025-08-31 22:14:00,368 (model_utility:729) [DEBUG]: x_train.shape = (74900, 7)
+2025-08-31 22:14:00,368 (model_utility:730) [DEBUG]: y_train.shape = (74900, 2)
+2025-08-31 22:14:03,056 (train_model:94) [DEBUG]: Training has done
+2025-08-31 22:14:03,064 (train_model:109) [INFO]: Trained model saved: /mnt/c/Users/HosodaLab2/University/Reserch/reservoir/myrobot/data/trained_model/tau_sweep_hearing.seed123.step3/20250831T221359/trained_model.joblib

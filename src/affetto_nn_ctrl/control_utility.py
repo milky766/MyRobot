@@ -10,7 +10,23 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from affctrllib import PTP, AffComm, AffPosCtrl, AffStateThread, Logger, Timer
-from pyplotutil.datautil import Data
+# from pyplotutil.datautil import Data  # removed hard dependency (PyQt6 build issue on headless Pi)
+# Optional pyplotutil import (only needed for Spline / data file utilities)
+try:  # noqa: SIM105
+    from pyplotutil.datautil import Data  # type: ignore
+except Exception:  # noqa: BLE001
+    class Data:  # type: ignore
+        """Fallback stub when pyplotutil (PyQt6) is unavailable.
+
+        Any attempt to instantiate will raise an informative error. This allows
+        modules that don't use Data/Spline (e.g., random_valve_test) to run
+        without installing heavy GUI deps on Raspberry Pi.
+        """
+        def __init__(self, *_, **__):  # noqa: D401
+            raise ImportError(
+                "pyplotutil (and PyQt6) not installed. Install it only if you need Spline/data plotting features:"
+                "\n  pip install git+https://github.com/hrshtst/pyplotutil.git"
+            )
 from scipy import interpolate
 
 from affetto_nn_ctrl._typing import NoDefault, no_default
@@ -40,17 +56,82 @@ def create_controller(
     sfreq: float | None,
     cfreq: float | None,
     waiting_time: float = 0.0,
+    *,
+    backend: str | None = None,
 ) -> CONTROLLER_T:
     event_logger().info("Loaded config: %s", config)
     event_logger().debug("sensor frequency: %s, control frequency: %s", sfreq, cfreq)
 
-    comm = AffComm(config_path=config)
-    comm.create_command_socket()
-    state = AffStateThread(config=config, freq=sfreq, logging=False, output=None, butterworth=True)
-    ctrl = AffPosCtrl(config_path=config, freq=cfreq)
-    state.prepare()
-    state.start()
-    event_logger().debug("Controller created.")
+    # Backend auto-detect: if config path name suggests raspberry pi robot OR explicit backend
+    use_rpi = False
+    if backend is not None:
+        use_rpi = backend.lower() in {"rpi", "raspberry", "raspberrypi"}
+    else:
+        name_lower = Path(config).name.lower()
+        if "raspberry" in name_lower or "raspi" in name_lower or "rpi" in name_lower:
+            use_rpi = True
+
+    if use_rpi:
+        try:
+            from affetto_nn_ctrl.raspberry_pi_hardware import (
+                create_rpi_controller,
+                create_rpi_controller_from_config,
+            )  # lazy import
+            # For now DOF inference: read toml for [robot].dof if available
+            dof = None
+            cfg_dict = None
+            try:
+                with Path(config).open("rb") as f:
+                    cfg_dict = tomllib.load(f)
+                dof = cfg_dict.get("robot", {}).get("dof", None)
+            except Exception:  # noqa: BLE001
+                pass
+            if dof is None:
+                dof = 6  # fallback default
+            # Detect real hardware flag (forced always True per user request)
+            real_flag = True
+            # (Previous conditional detection via config removed.)
+            if real_flag:
+                comm, ctrl, state = create_rpi_controller_from_config(
+                    config,
+                    sensor_freq=sfreq,
+                    control_freq=cfreq,
+                    real=True,
+                )
+                event_logger().info(
+                    "Created Raspberry Pi REAL controller: dof=%s (sfreq=%s cfreq=%s)",
+                    dof,
+                    sfreq,
+                    cfreq,
+                )
+            else:
+                comm, ctrl, state = create_rpi_controller(dof, sensor_freq=sfreq, control_freq=cfreq)
+                event_logger().info(
+                    "Created Raspberry Pi (simulated) controller: dof=%s (sfreq=%s cfreq=%s)",
+                    dof,
+                    sfreq,
+                    cfreq,
+                )
+        except Exception as e:  # noqa: BLE001
+            event_logger().warning("Failed to create Raspberry Pi controller fallback to affctrllib: %s", e)
+            use_rpi = False
+
+    if not use_rpi:
+        comm = AffComm(config_path=config)
+        comm.create_command_socket()
+        state = AffStateThread(config=config, freq=sfreq, logging=False, output=None, butterworth=True)
+        ctrl = AffPosCtrl(config_path=config, freq=cfreq)
+        state.prepare()
+        state.start()
+        event_logger().debug("Controller created.")
+
+    # Ensure variables exist (for type checker robustness)
+    try:
+        comm
+        ctrl
+        state
+    except UnboundLocalError as e:  # pragma: no cover - defensive
+        raise RuntimeError("Controller creation failed: variables unbound") from e
 
     if waiting_time > 0:
         event_logger().info("Waiting until robot gets stationary for %s s...", waiting_time)
@@ -620,6 +701,11 @@ class RandomTrajectory:
         active_joints: list[int],
         update_t_range: tuple[float, float] | list[tuple[float, float]],
     ) -> list[tuple[float, float]]:
+        """Set per-joint update duration ranges.
+
+        Accepts either a single (min,max) tuple (applies to all active joints) or
+        a list of per-joint tuples matching the length of active_joints.
+        """
         self.update_t_range_list = self.get_list_of_range(active_joints, update_t_range)
         return self.update_t_range_list
 
@@ -628,6 +714,11 @@ class RandomTrajectory:
         active_joints: list[int],
         update_q_range: tuple[float, float] | list[tuple[float, float]],
     ) -> list[tuple[float, float]]:
+        """Set per-joint update position ranges.
+
+        Similar behavior to set_update_t_range but for the position deltas used when
+        generating new target positions.
+        """
         self.update_q_range_list = self.get_list_of_range(active_joints, update_q_range)
         return self.update_q_range_list
 
@@ -636,10 +727,14 @@ class RandomTrajectory:
         active_joints: list[int],
         update_q_limit: tuple[float, float] | list[tuple[float, float]],
     ) -> list[tuple[float, float]]:
+        """Set per-joint absolute position limits used to clamp generated targets.
+
+        If a single tuple is provided and the waist joint (WAIST_JOINT_INDEX) is
+        included in active_joints, apply the special WAIST_JOINT_LIMIT to that
+        joint to keep the waist movement restricted.
+        """
         self.update_q_limit_list = self.get_list_of_range(active_joints, update_q_limit)
         if isinstance(update_q_limit, tuple) and WAIST_JOINT_INDEX in active_joints:
-            # When update_q_limit is given as tuple and waist joint is included in active
-            # joints list, reduce limits of the waist joint.
             waist_index = active_joints.index(WAIST_JOINT_INDEX)
             self.update_q_limit_list[waist_index] = WAIST_JOINT_LIMIT
         return self.update_q_limit_list

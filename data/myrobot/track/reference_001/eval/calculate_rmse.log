@@ -1,0 +1,96 @@
+2025-09-05 18:20:33,025 (event_logging:164) [DEBUG]: Start event logging
+2025-09-05 18:20:33,025 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-05 18:20:33,025 (event_logging:166) [DEBUG]: Log filename: data/myrobot/track/reference_001/eval/calculate_rmse.log
+2025-09-05 18:20:33,026 (event_logging:168) [DEBUG]: Command: python /home/hosodalab2/Desktop/MyRobot/apps/calculate_rmse.py data/myrobot/track/tracked_trajectory_eval.toml -o data/myrobot/track/reference_001/eval --plot-ext .png .pdf -v
+2025-09-05 18:20:33,026 (calculate_rmse:648) [INFO]: Output directory: data/myrobot/track/reference_001/eval
+2025-09-05 18:20:33,026 (data_handling:162) [DEBUG]: Directory created: data/myrobot/track/reference_001/eval
+2025-09-05 18:20:33,026 (calculate_rmse:650) [DEBUG]: Parsed arguments: Namespace(tracked_trajectory='data/myrobot/track/tracked_trajectory_eval.toml', joints=None, output='data/myrobot/track/reference_001/eval', reference_prefix='reference', output_prefix='tracked_trajectory', plot_prefix='prediction', tshift=0.0, tlim=None, plot_ext=['.png', '.pdf'], merge_plots=True, dpi='figure', show_legend=True, use_motion_reference=False, err_type=None, fill=False, fill_err_type=None, fill_alpha=None, show_screen=None, verbose=1)
+2025-09-05 18:20:33,026 (calculate_rmse:459) [DEBUG]: Resolved active joints: None
+2025-09-05 18:20:33,027 (calculate_rmse:468) [DEBUG]: Loaded tracked trajectory paths from: data/myrobot/track/tracked_trajectory_eval.toml
+2025-09-05 18:20:33,033 (calculate_rmse:479) [DEBUG]: Loaded reference data: data/recorded_trajectory/csv/reference_trajectory_3.csv
+2025-09-05 18:20:33,036 (calculate_rmse:484) [DEBUG]: Loaded motion data: data/myrobot/track/reference_001/tracked_trajectory_21.csv
+2025-09-05 18:26:36,741 (event_logging:164) [DEBUG]: Start event logging
+2025-09-05 18:26:36,741 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-05 18:26:36,741 (event_logging:166) [DEBUG]: Log filename: data/myrobot/track/reference_001/eval/calculate_rmse.log
+2025-09-05 18:26:36,741 (event_logging:168) [DEBUG]: Command: python /home/hosodalab2/Desktop/MyRobot/apps/calculate_rmse.py data/myrobot/track/tracked_trajectory_eval.toml -o data/myrobot/track/reference_001/eval --plot-ext .png .pdf -v
+2025-09-05 18:26:36,741 (calculate_rmse:717) [INFO]: Output directory: data/myrobot/track/reference_001/eval
+2025-09-05 18:26:36,741 (data_handling:162) [DEBUG]: Directory created: data/myrobot/track/reference_001/eval
+2025-09-05 18:26:36,741 (calculate_rmse:719) [DEBUG]: Parsed arguments: Namespace(tracked_trajectory='data/myrobot/track/tracked_trajectory_eval.toml', joints=None, output='data/myrobot/track/reference_001/eval', reference_prefix='reference', output_prefix='tracked_trajectory', plot_prefix='prediction', tshift=0.0, tlim=None, plot_ext=['.png', '.pdf'], merge_plots=True, dpi='figure', show_legend=True, use_motion_reference=False, err_type=None, fill=False, fill_err_type=None, fill_alpha=None, show_screen=None, verbose=1)
+2025-09-05 18:26:36,742 (calculate_rmse:528) [DEBUG]: Resolved active joints: None
+2025-09-05 18:26:36,742 (calculate_rmse:537) [DEBUG]: Loaded tracked trajectory paths from: data/myrobot/track/tracked_trajectory_eval.toml
+2025-09-05 18:26:36,747 (calculate_rmse:548) [DEBUG]: Loaded reference data: data/recorded_trajectory/csv/reference_trajectory_3.csv
+2025-09-05 18:26:36,752 (calculate_rmse:553) [DEBUG]: Loaded motion data: data/myrobot/track/reference_001/tracked_trajectory_21.csv
+2025-09-05 18:28:21,285 (event_logging:164) [DEBUG]: Start event logging
+2025-09-05 18:28:21,285 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-05 18:28:21,285 (event_logging:166) [DEBUG]: Log filename: data/myrobot/track/reference_001/eval/calculate_rmse.log
+2025-09-05 18:28:21,285 (event_logging:168) [DEBUG]: Command: python /home/hosodalab2/Desktop/MyRobot/apps/calculate_rmse.py data/myrobot/track/tracked_trajectory_eval.toml -o data/myrobot/track/reference_001/eval --plot-ext .png .pdf -v
+2025-09-05 18:28:21,285 (calculate_rmse:786) [INFO]: Output directory: data/myrobot/track/reference_001/eval
+2025-09-05 18:28:21,286 (data_handling:162) [DEBUG]: Directory created: data/myrobot/track/reference_001/eval
+2025-09-05 18:28:21,286 (calculate_rmse:788) [DEBUG]: Parsed arguments: Namespace(tracked_trajectory='data/myrobot/track/tracked_trajectory_eval.toml', joints=None, output='data/myrobot/track/reference_001/eval', reference_prefix='reference', output_prefix='tracked_trajectory', plot_prefix='prediction', tshift=0.0, tlim=None, plot_ext=['.png', '.pdf'], merge_plots=True, dpi='figure', show_legend=True, use_motion_reference=False, err_type=None, fill=False, fill_err_type=None, fill_alpha=None, show_screen=None, verbose=1)
+2025-09-05 18:28:21,286 (calculate_rmse:597) [DEBUG]: Resolved active joints: None
+2025-09-05 18:28:21,286 (calculate_rmse:606) [DEBUG]: Loaded tracked trajectory paths from: data/myrobot/track/tracked_trajectory_eval.toml
+2025-09-05 18:28:21,292 (calculate_rmse:617) [DEBUG]: Loaded reference data: data/recorded_trajectory/csv/reference_trajectory_3.csv
+2025-09-05 18:28:21,296 (calculate_rmse:622) [DEBUG]: Loaded motion data: data/myrobot/track/reference_001/tracked_trajectory_21.csv
+2025-09-05 18:29:50,599 (event_logging:164) [DEBUG]: Start event logging
+2025-09-05 18:29:50,599 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-05 18:29:50,599 (event_logging:166) [DEBUG]: Log filename: data/myrobot/track/reference_001/eval/calculate_rmse.log
+2025-09-05 18:29:50,599 (event_logging:168) [DEBUG]: Command: python /home/hosodalab2/Desktop/MyRobot/apps/calculate_rmse.py data/myrobot/track/tracked_trajectory_eval.toml -o data/myrobot/track/reference_001/eval --plot-ext .png .pdf -v
+2025-09-05 18:29:50,600 (calculate_rmse:880) [INFO]: Output directory: data/myrobot/track/reference_001/eval
+2025-09-05 18:29:50,600 (data_handling:162) [DEBUG]: Directory created: data/myrobot/track/reference_001/eval
+2025-09-05 18:29:50,600 (calculate_rmse:882) [DEBUG]: Parsed arguments: Namespace(tracked_trajectory='data/myrobot/track/tracked_trajectory_eval.toml', joints=None, output='data/myrobot/track/reference_001/eval', reference_prefix='reference', output_prefix='tracked_trajectory', plot_prefix='prediction', tshift=0.0, tlim=None, plot_ext=['.png', '.pdf'], merge_plots=True, dpi='figure', show_legend=True, use_motion_reference=False, err_type=None, fill=False, fill_err_type=None, fill_alpha=None, show_screen=None, verbose=1)
+2025-09-05 18:29:50,601 (calculate_rmse:691) [DEBUG]: Resolved active joints: None
+2025-09-05 18:29:50,601 (calculate_rmse:700) [DEBUG]: Loaded tracked trajectory paths from: data/myrobot/track/tracked_trajectory_eval.toml
+2025-09-05 18:29:50,609 (calculate_rmse:711) [DEBUG]: Loaded reference data: data/recorded_trajectory/csv/reference_trajectory_3.csv
+2025-09-05 18:29:50,613 (calculate_rmse:716) [DEBUG]: Loaded motion data: data/myrobot/track/reference_001/tracked_trajectory_21.csv
+2025-09-05 18:29:50,617 (calculate_rmse:720) [DEBUG]: Calculated RMSE for each joint: [12.58430052]
+2025-09-05 18:33:05,260 (event_logging:164) [DEBUG]: Start event logging
+2025-09-05 18:33:05,260 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-05 18:33:05,260 (event_logging:166) [DEBUG]: Log filename: data/myrobot/track/reference_001/eval/calculate_rmse.log
+2025-09-05 18:33:05,260 (event_logging:168) [DEBUG]: Command: python /home/hosodalab2/Desktop/MyRobot/apps/calculate_rmse.py data/myrobot/track/tracked_trajectory_eval.toml -o data/myrobot/track/reference_001/eval --plot-ext .png .pdf -v
+2025-09-05 18:33:05,260 (calculate_rmse:891) [INFO]: Output directory: data/myrobot/track/reference_001/eval
+2025-09-05 18:33:05,260 (data_handling:162) [DEBUG]: Directory created: data/myrobot/track/reference_001/eval
+2025-09-05 18:33:05,261 (calculate_rmse:893) [DEBUG]: Parsed arguments: Namespace(tracked_trajectory='data/myrobot/track/tracked_trajectory_eval.toml', joints=None, output='data/myrobot/track/reference_001/eval', reference_prefix='reference', output_prefix='tracked_trajectory', plot_prefix='prediction', tshift=0.0, tlim=None, plot_ext=['.png', '.pdf'], merge_plots=True, dpi='figure', show_legend=True, use_motion_reference=False, err_type=None, fill=False, fill_err_type=None, fill_alpha=None, show_screen=None, verbose=1)
+2025-09-05 18:33:05,261 (calculate_rmse:702) [DEBUG]: Resolved active joints: None
+2025-09-05 18:33:05,261 (calculate_rmse:711) [DEBUG]: Loaded tracked trajectory paths from: data/myrobot/track/tracked_trajectory_eval.toml
+2025-09-05 18:33:05,267 (calculate_rmse:722) [DEBUG]: Loaded reference data: data/recorded_trajectory/csv/reference_trajectory_3.csv
+2025-09-05 18:33:05,272 (calculate_rmse:727) [DEBUG]: Loaded motion data: data/myrobot/track/reference_001/tracked_trajectory_21.csv
+2025-09-05 18:33:05,273 (calculate_rmse:731) [DEBUG]: Calculated RMSE for each joint: [12.58430052]
+2025-09-05 18:34:17,905 (event_logging:164) [DEBUG]: Start event logging
+2025-09-05 18:34:17,905 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-05 18:34:17,905 (event_logging:166) [DEBUG]: Log filename: data/myrobot/track/reference_001/eval/calculate_rmse.log
+2025-09-05 18:34:17,905 (event_logging:168) [DEBUG]: Command: python /home/hosodalab2/Desktop/MyRobot/apps/calculate_rmse.py data/myrobot/track/tracked_trajectory_eval.toml -o data/myrobot/track/reference_001/eval --plot-ext .png .pdf -v
+2025-09-05 18:34:17,905 (calculate_rmse:893) [INFO]: Output directory: data/myrobot/track/reference_001/eval
+2025-09-05 18:34:17,906 (data_handling:162) [DEBUG]: Directory created: data/myrobot/track/reference_001/eval
+2025-09-05 18:34:17,906 (calculate_rmse:895) [DEBUG]: Parsed arguments: Namespace(tracked_trajectory='data/myrobot/track/tracked_trajectory_eval.toml', joints=None, output='data/myrobot/track/reference_001/eval', reference_prefix='reference', output_prefix='tracked_trajectory', plot_prefix='prediction', tshift=0.0, tlim=None, plot_ext=['.png', '.pdf'], merge_plots=True, dpi='figure', show_legend=True, use_motion_reference=False, err_type=None, fill=False, fill_err_type=None, fill_alpha=None, show_screen=None, verbose=1)
+2025-09-05 18:34:17,906 (calculate_rmse:704) [DEBUG]: Resolved active joints: None
+2025-09-05 18:34:17,907 (calculate_rmse:713) [DEBUG]: Loaded tracked trajectory paths from: data/myrobot/track/tracked_trajectory_eval.toml
+2025-09-05 18:34:17,912 (calculate_rmse:724) [DEBUG]: Loaded reference data: data/recorded_trajectory/csv/reference_trajectory_3.csv
+2025-09-05 18:34:17,916 (calculate_rmse:729) [DEBUG]: Loaded motion data: data/myrobot/track/reference_001/tracked_trajectory_21.csv
+2025-09-05 18:34:17,920 (calculate_rmse:733) [DEBUG]: Calculated RMSE for each joint: [12.58430052]
+2025-09-05 18:34:17,956 (plot_utility:77) [DEBUG]: Making filename compatible to file system:
+2025-09-05 18:34:17,956 (plot_utility:78) [DEBUG]:        given filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/prediction_05_q
+2025-09-05 18:34:17,956 (plot_utility:79) [DEBUG]:   compatible filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/prediction_05_q
+2025-09-05 18:34:18,234 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/png/prediction_05_q.png
+2025-09-05 18:34:18,674 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/pdf/prediction_05_q.pdf
+2025-09-05 18:34:18,692 (plot_utility:77) [DEBUG]: Making filename compatible to file system:
+2025-09-05 18:34:18,692 (plot_utility:78) [DEBUG]:        given filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/prediction_05_dq
+2025-09-05 18:34:18,692 (plot_utility:79) [DEBUG]:   compatible filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/prediction_05_dq
+2025-09-05 18:34:18,957 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/png/prediction_05_dq.png
+2025-09-05 18:34:19,118 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/pdf/prediction_05_dq.pdf
+2025-09-05 18:34:19,119 (calculate_rmse:753) [DEBUG]: Merging the following figures: [PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/png/prediction_05_q.png'), PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/pdf/prediction_05_q.pdf'), PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/png/prediction_05_dq.png'), PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/pdf/prediction_05_dq.pdf')]
+2025-09-05 18:34:19,132 (calculate_rmse:549) [INFO]: Saved merged plots: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/pdf/merged_prediction_05_dq.pdf
+2025-09-05 18:34:19,145 (calculate_rmse:549) [INFO]: Saved merged plots: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_21/pdf/merged_prediction_05_q.pdf
+2025-09-05 18:34:19,171 (plot_utility:77) [DEBUG]: Making filename compatible to file system:
+2025-09-05 18:34:19,172 (plot_utility:78) [DEBUG]:        given filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/all_prediction_05_q
+2025-09-05 18:34:19,172 (plot_utility:79) [DEBUG]:   compatible filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/all_prediction_05_q
+2025-09-05 18:34:19,409 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/png/all_prediction_05_q.png
+2025-09-05 18:34:19,558 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/pdf/all_prediction_05_q.pdf
+2025-09-05 18:34:19,576 (plot_utility:77) [DEBUG]: Making filename compatible to file system:
+2025-09-05 18:34:19,576 (plot_utility:78) [DEBUG]:        given filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/all_prediction_05_dq
+2025-09-05 18:34:19,576 (plot_utility:79) [DEBUG]:   compatible filename: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/all_prediction_05_dq
+2025-09-05 18:34:19,831 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/png/all_prediction_05_dq.png
+2025-09-05 18:34:20,002 (plot_utility:67) [INFO]: Figure saved: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/pdf/all_prediction_05_dq.pdf
+2025-09-05 18:34:20,003 (calculate_rmse:448) [INFO]: Calculated RMSE saved: data/myrobot/track/reference_001/eval/tracked_trajectory.toml
+2025-09-05 18:34:20,003 (calculate_rmse:785) [DEBUG]: Merging the following figures: [PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/png/all_prediction_05_q.png'), PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/pdf/all_prediction_05_q.pdf'), PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/png/all_prediction_05_dq.png'), PosixPath('data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/pdf/all_prediction_05_dq.pdf')]
+2025-09-05 18:34:20,016 (calculate_rmse:549) [INFO]: Saved merged plots: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/pdf/merged_all_prediction_05_q.pdf
+2025-09-05 18:34:20,031 (calculate_rmse:549) [INFO]: Saved merged plots: data/myrobot/track/reference_001/eval/reference_001/tracked_trajectory_all/pdf/merged_all_prediction_05_dq.pdf

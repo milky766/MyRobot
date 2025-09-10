@@ -28,12 +28,8 @@ if TYPE_CHECKING:
     from affetto_nn_ctrl import CONTROLLER_T
     from affetto_nn_ctrl._typing import T, Unknown
 
-
-from sklearn.metrics import r2_score
-
 if sys.version_info >= (3, 11):
     from typing import NotRequired
-    
 
     import tomllib
 else:
@@ -136,81 +132,24 @@ class DummyDataAdapter(DataAdapterBase[DataAdapterParamsBase, StatesBase, RefsBa
 dummy_data_adapter = DummyDataAdapter(DataAdapterParamsBase())
 
 
-def _get_keys(symbols: Iterable[str], active_joints: list[int], *, add_t: bool = False) -> list[str]:
+def _get_keys(symbols: Iterable[str], active_joints: list[int], *, add_t: bool = False, use_indexed_columns: bool = True) -> list[str]:
+    """Generate column keys for given symbols and active_joints.
+
+    If use_indexed_columns is True, produce keys like 'q5', 'dq5' for each joint index.
+    If False, produce non-numbered keys like 'q', 'dq' (single set), suitable for 1-DOF CSVs.
+    """
     keys: list[str] = []
     if add_t:
         keys.append("t")
-    for s in symbols:
-        keys.extend([f"{s}{i}" for i in active_joints])
+    if use_indexed_columns:
+        for s in symbols:
+            keys.extend([f"{s}{i}" for i in active_joints])
+    else:
+        # Use only base symbol names (no per-joint suffix). Duplicate symbols are not created.
+        for s in symbols:
+            keys.append(s)
     return keys
 
-@dataclass
-class SingleShotMultiHorizonParams(DataAdapterParamsBase):
-    """Parameters for the single-shot multi-horizon handler."""
-    active_joints: list[int]
-    dt: float
-    ctrl_step: int
-    min_preview_step: int
-    max_preview_step: int
-
-class SingleShotMultiHorizonHandler(DataAdapterBase[SingleShotMultiHorizonParams, DefaultStates, DefaultRefs, DefaultInputs]):
-    """
-    Generates a dataset for single-shot multi-horizon learning.
-    Input X: [current_state, future_reference_trajectory]
-    Output Y: [future_control_commands]
-    """
-    def make_feature(self, dataset: Data) -> np.ndarray:
-        # 入力Xを生成
-        joints = self.params.active_joints
-        N_min, N_max = self.params.min_preview_step, self.params.max_preview_step
-
-        state_keys = _get_keys(["q", "dq", "pa", "pb"], joints)
-        ref_keys = _get_keys(["q"], joints)
-
-        # 有効なデータ範囲を計算
-        valid_len = len(dataset.df) - N_max
-
-        # 現在の状態 s_t
-        s_t = dataset.df.loc[:valid_len-1, state_keys].values
-
-        # 未来の参照軌道 r_{t+N_min} ... r_{t+N_max}
-        future_refs_list = []
-        for k in range(N_min, N_max + 1):
-            ref_at_k = dataset.df.loc[k:valid_len+k-1, ref_keys].values
-            future_refs_list.append(ref_at_k)
-
-        future_refs_concat = np.concatenate(future_refs_list, axis=1)
-
-        # s_t と未来の参照軌道を連結してXを作成
-        X = np.concatenate([s_t, future_refs_concat], axis=1)
-        return X
-
-    def make_target(self, dataset: Data) -> np.ndarray:
-        # 正解ラベルYを生成
-        joints = self.params.active_joints
-        N_min, N_max = self.params.min_preview_step, self.params.max_preview_step
-
-        ctrl_keys = _get_keys(["ca", "cb"], joints)
-
-        # 有効なデータ範囲を計算
-        valid_len = len(dataset.df) - N_max
-
-        # 未来の制御指令 u_{t+N_min} ... u_{t+N_max}
-        future_ctrls_list = []
-        for k in range(N_min, N_max + 1):
-            ctrl_at_k = dataset.df.loc[k:valid_len+k-1, ctrl_keys].values
-            future_ctrls_list.append(ctrl_at_k)
-
-        # 全ての未来の制御指令を連結してYを作成
-        Y = np.concatenate(future_ctrls_list, axis=1)
-        return Y
-
-    def make_model_input(self, t: float, states: DefaultStates, refs: DefaultRefs) -> np.ndarray:
-        raise NotImplementedError
-    def make_ctrl_input(self, y: np.ndarray, base_inputs: DefaultInputs) -> tuple[np.ndarray, ...]:
-        raise NotImplementedError
-    def reset(self) -> None:
-        pass
 
 @dataclass
 class PreviewRefParams(DataAdapterParamsBase):
@@ -219,6 +158,8 @@ class PreviewRefParams(DataAdapterParamsBase):
     ctrl_step: int
     preview_step: int
     include_dqdes: bool = False
+    # Support legacy config that sets include_tension
+    include_tension: bool = False
 
 
 class PreviewRef(DataAdapterBase[PreviewRefParams, DefaultStates, DefaultRefs, DefaultInputs]):
@@ -237,15 +178,19 @@ class PreviewRef(DataAdapterBase[PreviewRefParams, DefaultStates, DefaultRefs, D
         ctrl_step = self.params.ctrl_step
         preview_step = self.params.preview_step
         shift = ctrl_step + preview_step
-        states = extract_data(dataset, _get_keys(["q", "dq", "pa", "pb"], joints), end=-shift)
+        symbols = ["q", "dq", "pa", "pb"]
+        if getattr(self.params, "include_tension", False):
+            # include Ta and Tb when configured
+            symbols.extend(["Ta", "Tb"])
+        states = extract_data(dataset, _get_keys(symbols, joints, use_indexed_columns=self.params.use_indexed_columns), end=-shift)
         ref_keys: list[str] = ["q"]
         if self.params.include_dqdes:
             ref_keys.append("dq")
         reference = extract_data(
             dataset,
-            _get_keys(ref_keys, joints),
+            _get_keys(ref_keys, joints, use_indexed_columns=self.params.use_indexed_columns),
             start=shift,
-            keys_replace=_get_keys([f"{x}des" for x in ref_keys], joints),
+            keys_replace=_get_keys([f"{x}des" for x in ref_keys], joints, use_indexed_columns=self.params.use_indexed_columns),
         )
         feature_data = pd.concat((states, reference), axis=1)
         return feature_data.to_numpy()
@@ -255,7 +200,7 @@ class PreviewRef(DataAdapterBase[PreviewRefParams, DefaultStates, DefaultRefs, D
         ctrl_step = self.params.ctrl_step
         preview_step = self.params.preview_step
         shift = ctrl_step + preview_step
-        ctrl_input = extract_data(dataset, _get_keys(["ca", "cb"], joints), end=-shift)
+        ctrl_input = extract_data(dataset, _get_keys(["ca", "cb"], joints, use_indexed_columns=self.params.use_indexed_columns), end=-shift)
         return ctrl_input.to_numpy()
 
     def make_model_input(self, t: float, states: DefaultStates, refs: DefaultRefs) -> np.ndarray:
@@ -265,12 +210,25 @@ class PreviewRef(DataAdapterBase[PreviewRefParams, DefaultStates, DefaultRefs, D
         dq = states["dq"][joints]
         pa = states["pa"][joints]
         pb = states["pb"][joints]
+        # include Ta/Tb from runtime states if present and configured
+        if getattr(self.params, "include_tension", False):
+            Ta = states.get("Ta", np.zeros_like(pa))[joints] if isinstance(states, dict) else np.zeros_like(pa)
+            Tb = states.get("Tb", np.zeros_like(pb))[joints] if isinstance(states, dict) else np.zeros_like(pb)
+        else:
+            Ta = None
+            Tb = None
         qdes = refs["qdes"](t + preview_time)[joints]
         if self.params.include_dqdes:
             dqdes = refs["dqdes"](t + preview_time)[joints]
-            model_input = np.concatenate((q, dq, pa, pb, qdes, dqdes))
+            if Ta is not None and Tb is not None:
+                model_input = np.concatenate((q, dq, pa, pb, Ta, Tb, qdes, dqdes))
+            else:
+                model_input = np.concatenate((q, dq, pa, pb, qdes, dqdes))
         else:
-            model_input = np.concatenate((q, dq, pa, pb, qdes))  # concatenate feature vectors horizontally
+            if Ta is not None and Tb is not None:
+                model_input = np.concatenate((q, dq, pa, pb, Ta, Tb, qdes))  # concatenate feature vectors horizontally
+            else:
+                model_input = np.concatenate((q, dq, pa, pb, qdes))  # concatenate feature vectors horizontally
         # Make matrix that has 1 row and n_features columns.
         return np.atleast_2d(model_input)
 
@@ -295,6 +253,8 @@ class DelayStatesParams(DataAdapterParamsBase):
     ctrl_step: int
     delay_step: int
     include_dqdes: bool = False
+    use_indexed_columns: bool = False
+    include_tension: bool = False
 
 
 class DelayStates(DataAdapterBase[DelayStatesParams, DefaultStates, DefaultRefs, DefaultInputs]):
@@ -316,11 +276,14 @@ class DelayStates(DataAdapterBase[DelayStatesParams, DefaultStates, DefaultRefs,
         delay_step = self.params.delay_step
         shift = ctrl_step + delay_step
 
-        states_keys = _get_keys(["q", "dq", "pa", "pb"], joints)
+        base_symbols = ["q", "dq", "pa", "pb"]
+        if getattr(self.params, "include_tension", False):
+            base_symbols.extend(["Ta", "Tb"])
+        states_keys = _get_keys(base_symbols, joints, use_indexed_columns=self.params.use_indexed_columns)
         refs: list[str] = ["q"]
         if self.params.include_dqdes:
             refs.append("dq")
-        ref_keys = _get_keys(refs, joints)
+        ref_keys = _get_keys(refs, joints, use_indexed_columns=self.params.use_indexed_columns)
 
         delayed_states = extract_data(dataset, states_keys, end=-shift)
         current_states = extract_data(dataset, states_keys, start=delay_step, end=-ctrl_step)
@@ -328,7 +291,7 @@ class DelayStates(DataAdapterBase[DelayStatesParams, DefaultStates, DefaultRefs,
             dataset,
             ref_keys,
             start=shift,
-            keys_replace=_get_keys([f"{x}des" for x in refs], joints),
+            keys_replace=_get_keys([f"{x}des" for x in refs], joints, use_indexed_columns=self.params.use_indexed_columns),
         )
         feature_data = pd.concat((delayed_states, current_states, reference), axis=1)
         return feature_data.to_numpy()
@@ -337,7 +300,7 @@ class DelayStates(DataAdapterBase[DelayStatesParams, DefaultStates, DefaultRefs,
         joints = self.params.active_joints
         ctrl_step = self.params.ctrl_step
         delay_step = self.params.delay_step
-        ctrl_input = extract_data(dataset, _get_keys(["ca", "cb"], joints), start=delay_step, end=-ctrl_step)
+        ctrl_input = extract_data(dataset, _get_keys(["ca", "cb"], joints, use_indexed_columns=self.params.use_indexed_columns), start=delay_step, end=-ctrl_step)
         return ctrl_input.to_numpy()
 
     def make_model_input(self, t: float, states: DefaultStates, refs: DefaultRefs) -> np.ndarray:
@@ -346,6 +309,13 @@ class DelayStates(DataAdapterBase[DelayStatesParams, DefaultStates, DefaultRefs,
         dq = states["dq"][joints]
         pa = states["pa"][joints]
         pb = states["pb"][joints]
+        # include tension if available
+        if getattr(self.params, "include_tension", False):
+            Ta = states.get("Ta", np.zeros_like(pa))[joints] if isinstance(states, dict) else np.zeros_like(pa)
+            Tb = states.get("Tb", np.zeros_like(pb))[joints] if isinstance(states, dict) else np.zeros_like(pb)
+        else:
+            Ta = None
+            Tb = None
         current_states = np.concatenate((q, dq, pa, pb))
         self.states_queue.append(current_states)
         delayed_states = self.states_queue.popleft()
@@ -353,9 +323,15 @@ class DelayStates(DataAdapterBase[DelayStatesParams, DefaultStates, DefaultRefs,
         qdes = refs["qdes"](t)[joints]
         if self.params.include_dqdes:
             dqdes = refs["dqdes"](t)[joints]
-            model_input = np.concatenate((delayed_states, current_states, qdes, dqdes))
+            if Ta is not None and Tb is not None:
+                model_input = np.concatenate((delayed_states, current_states, Ta, Tb, qdes, dqdes))
+            else:
+                model_input = np.concatenate((delayed_states, current_states, qdes, dqdes))
         else:
-            model_input = np.concatenate((delayed_states, current_states, qdes))
+            if Ta is not None and Tb is not None:
+                model_input = np.concatenate((delayed_states, current_states, Ta, Tb, qdes))
+            else:
+                model_input = np.concatenate((delayed_states, current_states, qdes))
         return np.atleast_2d(model_input)
 
     def make_ctrl_input(self, y: np.ndarray, base_inputs: DefaultInputs) -> tuple[np.ndarray, ...]:
@@ -380,6 +356,8 @@ class DelayStatesAllParams(DataAdapterParamsBase):
     ctrl_step: int
     delay_step: int
     include_dqdes: bool = False
+    use_indexed_columns: bool = False
+    include_tension: bool = False
 
 
 class DelayStatesAll(DataAdapterBase[DelayStatesAllParams, DefaultStates, DefaultRefs, DefaultInputs]):
@@ -401,11 +379,14 @@ class DelayStatesAll(DataAdapterBase[DelayStatesAllParams, DefaultStates, Defaul
         delay_step = self.params.delay_step
         shift = ctrl_step + delay_step
 
-        states_keys = _get_keys(["q", "dq", "pa", "pb"], joints)
+        base_symbols = ["q", "dq", "pa", "pb"]
+        if getattr(self.params, "include_tension", False):
+            base_symbols.extend(["Ta", "Tb"])
+        states_keys = _get_keys(base_symbols, joints, use_indexed_columns=self.params.use_indexed_columns)
         refs: list[str] = ["q"]
         if self.params.include_dqdes:
             refs.append("dq")
-        ref_keys = _get_keys(refs, joints)
+        ref_keys = _get_keys(refs, joints, use_indexed_columns=self.params.use_indexed_columns)
 
         states = extract_data(dataset, states_keys, start=delay_step, end=-ctrl_step)
         for i in range(1, delay_step + 1):
@@ -417,7 +398,7 @@ class DelayStatesAll(DataAdapterBase[DelayStatesAllParams, DefaultStates, Defaul
             dataset,
             ref_keys,
             start=shift,
-            keys_replace=_get_keys([f"{x}des" for x in refs], joints),
+            keys_replace=_get_keys([f"{x}des" for x in refs], joints, use_indexed_columns=self.params.use_indexed_columns),
         )
         feature_data = pd.concat((states, reference), axis=1)
         return feature_data.to_numpy()
@@ -426,7 +407,7 @@ class DelayStatesAll(DataAdapterBase[DelayStatesAllParams, DefaultStates, Defaul
         joints = self.params.active_joints
         ctrl_step = self.params.ctrl_step
         delay_step = self.params.delay_step
-        ctrl_input = extract_data(dataset, _get_keys(["ca", "cb"], joints), start=delay_step, end=-ctrl_step)
+        ctrl_input = extract_data(dataset, _get_keys(["ca", "cb"], joints, use_indexed_columns=self.params.use_indexed_columns), start=delay_step, end=-ctrl_step)
         return ctrl_input.to_numpy()
 
     def make_model_input(self, t: float, states: DefaultStates, refs: DefaultRefs) -> np.ndarray:
@@ -435,6 +416,13 @@ class DelayStatesAll(DataAdapterBase[DelayStatesAllParams, DefaultStates, Defaul
         dq = states["dq"][joints]
         pa = states["pa"][joints]
         pb = states["pb"][joints]
+        # include tension if available
+        if getattr(self.params, "include_tension", False):
+            Ta = states.get("Ta", np.zeros_like(pa))[joints] if isinstance(states, dict) else np.zeros_like(pa)
+            Tb = states.get("Tb", np.zeros_like(pb))[joints] if isinstance(states, dict) else np.zeros_like(pb)
+        else:
+            Ta = None
+            Tb = None
         current_states = np.concatenate((q, dq, pa, pb))
         self.states_queue.append(current_states)
         concat_states = np.ravel(self.states_queue)
@@ -443,9 +431,15 @@ class DelayStatesAll(DataAdapterBase[DelayStatesAllParams, DefaultStates, Defaul
         qdes = refs["qdes"](t)[joints]
         if self.params.include_dqdes:
             dqdes = refs["dqdes"](t)[joints]
-            model_input = np.concatenate((concat_states, qdes, dqdes))
+            if Ta is not None and Tb is not None:
+                model_input = np.concatenate((concat_states, qdes, dqdes))
+            else:
+                model_input = np.concatenate((concat_states, qdes, dqdes))
         else:
-            model_input = np.concatenate((concat_states, qdes))
+            if Ta is not None and Tb is not None:
+                model_input = np.concatenate((concat_states, qdes))
+            else:
+                model_input = np.concatenate((concat_states, qdes))
         return np.atleast_2d(model_input)
 
     def make_ctrl_input(self, y: np.ndarray, base_inputs: DefaultInputs) -> tuple[np.ndarray, ...]:
@@ -497,10 +491,7 @@ DATA_ADAPTER_MAP: Mapping[str, tuple[type[DataAdapterBase], type[DataAdapterPara
     "preview-ref": (PreviewRef, PreviewRefParams),
     "delay-states": (DelayStates, DelayStatesParams),
     "delay-states-all": (DelayStatesAll, DelayStatesAllParams),
-    #"multi-horizon": (MultiHorizonHandler, MultiHorizonParams),
-    "single-shot-multi-horizon": (SingleShotMultiHorizonHandler, SingleShotMultiHorizonParams),
 }
-
 
 SCALER_MAP: Mapping[str, tuple[type[Scaler], None]] = {
     "std": (StandardScaler, None),
@@ -710,7 +701,6 @@ def load_train_datasets(
 class TrainedModel(Generic[DataAdapterParamsType, StatesType, RefsType, InputsType]):
     model: Regressor | Pipeline
     adapter: DataAdapterBase[DataAdapterParamsType, StatesType, RefsType, InputsType]
-    initial_tau: int | None = None
 
     def get_params(self) -> dict:
         return self.model.get_params()
@@ -731,53 +721,13 @@ class TrainedModel(Generic[DataAdapterParamsType, StatesType, RefsType, InputsTy
 def train_model(
     model: Regressor | Pipeline,
     datasets: Data | Iterable[Data],
-    adapter: DataAdapterBase[...],
-    val_size: float = 0.25, # 検証データの割合を追加
-    seed: int | None = None,
+    adapter: DataAdapterBase[DataAdapterParamsType, StatesType, RefsType, InputsType],
 ) -> TrainedModel:
-    # データセットを学習用と検証用に分割
-    from sklearn.model_selection import train_test_split
-    if isinstance(datasets, Data):
-        datasets = [datasets]
-    train_datasets, val_datasets = train_test_split(list(datasets), test_size=val_size, random_state=seed)
-
-    # 学習データでモデルを訓練
-    x_train, y_train = load_train_datasets(train_datasets, adapter)
+    x_train, y_train = load_train_datasets(datasets, adapter)
     event_logger().debug("x_train.shape = %s", x_train.shape)
     event_logger().debug("y_train.shape = %s", y_train.shape)
     model = model.fit(x_train, y_train)
-
-    # ★ ここからが追加ロジック ★
-    # 検証データで最適な初期tauを見つける
-    initial_tau = None
-    if val_datasets:
-        event_logger().info("Finding best initial tau from validation set...")
-        x_val, y_val = load_train_datasets(val_datasets, adapter)
-        y_pred = model.predict(x_val)
-        
-        best_score = -np.inf
-        
-        # モデルの出力（長いベクトル）と正解ラベルを各tauごとに分割して比較
-        N_min = adapter.params.min_preview_step
-        N_max = adapter.params.max_preview_step
-        n_ctrl_features = y_val.shape[1] // (N_max - N_min + 1)
-
-        for k in range(N_min, N_max + 1):
-            start_idx = (k - N_min) * n_ctrl_features
-            end_idx = start_idx + n_ctrl_features
-            
-            y_true_k = y_val[:, start_idx:end_idx]
-            y_pred_k = y_pred[:, start_idx:end_idx]
-            
-            score_k = r2_score(y_true_k, y_pred_k)
-            event_logger().info(f"  - R^2 score for tau={k}: {score_k:.4f}")
-            if score_k > best_score:
-                best_score = score_k
-                initial_tau = k
-        event_logger().info(f"Best initial tau found: {initial_tau} (score: {best_score:.4f})")
-
-    # 見つけたinitial_tauをモデルと一緒に保存
-    return TrainedModel(model, adapter, initial_tau=initial_tau)
+    return TrainedModel(model, adapter)
 
 
 def dump_trained_model(trained_model: TrainedModel, output: str | Path) -> Path:
@@ -937,92 +887,6 @@ def control_position_or_model(
     sys.stdout.write("\n")
     # Return the last commands that have been sent to the valve.
     return ca, cb
-
-@dataclass
-class MultiHorizonParams(DataAdapterParamsBase):
-    """
-    MultiHorizonHandlerが使用するパラメータ。
-    """
-    active_joints: list[int]
-    dt: float
-    ctrl_step: int
-    min_preview_step: int
-    max_preview_step: int
-
-class MultiHorizonHandler(DataAdapterBase[MultiHorizonParams, DefaultStates, DefaultRefs, DefaultInputs]):
-    """
-    適応制御モデルのためのマルチホライズン学習データセットを生成するハンドラ。
-    """
-    def __init__(self, params: MultiHorizonParams) -> None:
-        super().__init__(params)
-        if params.max_preview_step < 1:
-            msg = f"max_preview_step must be larger than or equal to 1: {params.max_preview_step}"
-            raise ValueError(msg)
-        if params.min_preview_step < 1 or params.min_preview_step > params.max_preview_step:
-            msg = f"min_preview_step is out of valid range: {params.min_preview_step}"
-            raise ValueError(msg)
-        self.reset()
-        self._cached_X: np.ndarray | None = None
-        self._cached_y: np.ndarray | None = None
-
-    def _make_dataset(self, dataset: Data) -> tuple[np.ndarray, np.ndarray]:
-        if self._cached_X is not None and self._cached_y is not None:
-            return self._cached_X, self._cached_y
-
-        X_list = []
-        y_list = []
-
-        joints = self.params.active_joints
-        N_min = self.params.min_preview_step
-        N_max = self.params.max_preview_step
-        
-        state_keys = _get_keys(["q", "dq", "pa", "pb"], joints)
-        ref_keys = _get_keys(["q"], joints)
-        ctrl_keys = _get_keys(["ca", "cb"], joints)
-
-        df_state = dataset.df.loc[:, state_keys]
-        df_ref = dataset.df.loc[:, ref_keys]
-        df_ctrl = dataset.df.loc[:, ctrl_keys]
-        
-        n_ref_features = len(ref_keys)
-        valid_length = len(df_state) - N_max
-
-        for t in range(valid_length):
-            for k in range(N_min, N_max + 1):
-                s_t = df_state.iloc[t].values
-                e_k = np.zeros(N_max)
-                e_k[k - 1] = 1.0
-                r_masked_flat = np.zeros(N_max * n_ref_features)
-                r_t_plus_k = df_ref.iloc[t + k].values
-                start_idx = (k - 1) * n_ref_features
-                end_idx = k * n_ref_features
-                r_masked_flat[start_idx:end_idx] = r_t_plus_k
-                x_sample = np.concatenate([s_t, r_masked_flat, e_k])
-                X_list.append(x_sample)
-                y_sample = df_ctrl.iloc[t + k].values
-                y_list.append(y_sample)
-        
-        self._cached_X = np.array(X_list)
-        self._cached_y = np.array(y_list)
-        return self._cached_X, self._cached_y
-
-    def make_feature(self, dataset: Data) -> np.ndarray:
-        X, _ = self._make_dataset(dataset)
-        return X
-
-    def make_target(self, dataset: Data) -> np.ndarray:
-        _, y = self._make_dataset(dataset)
-        return y
-    
-    def make_model_input(self, t: float, states: DefaultStates, refs: DefaultRefs) -> np.ndarray:
-        raise NotImplementedError("Online logic for MultiHorizon is not implemented yet.")
-
-    def make_ctrl_input(self, y: np.ndarray, base_inputs: DefaultInputs) -> tuple[np.ndarray, ...]:
-        raise NotImplementedError("Online logic for MultiHorizon is not implemented yet.")
-
-    def reset(self) -> None:
-        self._cached_X = None
-        self._cached_y = None
 
 
 # Local Variables:

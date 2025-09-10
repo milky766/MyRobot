@@ -1,0 +1,13 @@
+[model.performance]
+model_path = "data/myrobot_model/trained_model.joblib"
+active_joints = [ 5 ]
+rmse = { mean = [ 17.775077403413768 ], std = [ 0.0 ], argmax = [ "reference_001" ], argmin = [ "reference_001" ] }
+
+[model.performance.reference_001]
+reference_path = "data/recorded_trajectory/csv/reference_trajectory_6.csv"
+rmse = { mean = [ 17.775077403413768 ], std = [ 0.0 ], argmax = [ 0 ], argmin = [ 0 ] }
+
+[[model.performance.reference_001.errors]]
+motion_path = "data/myrobot/track/reference_001/tracked_trajectory_24.csv"
+rmse = [ 17.775077403413768 ]
+

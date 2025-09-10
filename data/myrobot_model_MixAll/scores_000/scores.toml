@@ -1,0 +1,64 @@
+[model.performance]
+model_path = "../data/trained_model/MixAll.seed42.step4/latest/trained_model.joblib"
+score = { mean = 0.9940747281214858, std = 0.007222998520246318, argmax = 1, argmin = 2 }
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/slow/motion_data_022.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_000"
+score = 0.9985922663380407
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/middle/motion_data_009.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_001"
+score = 0.9989704730477958
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/fast/motion_data_086.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_002"
+score = 0.971549397174777
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/middle/motion_data_041.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_003"
+score = 0.9987287633754529
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/fast/motion_data_009.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_004"
+score = 0.9925193832714501
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/slow/motion_data_014.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_005"
+score = 0.9987329366220057
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/slow/motion_data_095.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_006"
+score = 0.99245175295093
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/fast/motion_data_024.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_007"
+score = 0.9937405539257315
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/middle/motion_data_059.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_008"
+score = 0.9988129301782278
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/fast/motion_data_025.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_009"
+score = 0.9941750786585712
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/trapezoid/fast/motion_data_002.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_010"
+score = 0.995664716049674
+
+[[model.performance.scores]]
+test_dataset = "data/myrobot/hirai/csv/20250831/step/slow/motion_data_025.csv"
+plot_path = "../data/trained_model/MixAll.seed42.step4/latest/scores_000/plots_011"
+score = 0.9949584858651719
+

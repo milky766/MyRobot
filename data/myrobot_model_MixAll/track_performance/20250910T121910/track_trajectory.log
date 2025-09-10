@@ -1,0 +1,8 @@
+2025-09-10 12:19:10,065 (event_logging:164) [DEBUG]: Start event logging
+2025-09-10 12:19:10,065 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-10 12:19:10,065 (event_logging:166) [DEBUG]: Log filename: ../data/myrobot_model_MixAll/track_performance/20250910T121910/track_trajectory.log
+2025-09-10 12:19:10,065 (event_logging:168) [DEBUG]: Command: python track_trajectory.py ../data/myrobot_model_MixAll/trained_model.joblib -r ../data/recorded_trajectory/csv/reference_trajectory_6.csv -j 0 -f 30 -n 1 -v
+2025-09-10 12:19:10,065 (track_trajectory:469) [INFO]: Output directory: ../data/myrobot_model_MixAll/track_performance/20250910T121910
+2025-09-10 12:19:10,066 (data_handling:162) [DEBUG]: Directory created: ../data/myrobot_model_MixAll/track_performance/20250910T121910
+2025-09-10 12:19:10,066 (data_handling:152) [DEBUG]: Symlink created: ../data/myrobot_model_MixAll/track_performance/latest -> /home/hosodalab2/Desktop/MyRobot/apps/../data/myrobot_model_MixAll/track_performance/20250910T121910
+2025-09-10 12:19:10,067 (data_handling:162) [DEBUG]: Directory created: ../data/myrobot_model_MixAll/track_performance/20250910T121910/config

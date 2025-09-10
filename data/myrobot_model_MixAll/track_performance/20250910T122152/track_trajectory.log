@@ -1,0 +1,17 @@
+2025-09-10 12:21:52,144 (event_logging:164) [DEBUG]: Start event logging
+2025-09-10 12:21:52,145 (event_logging:165) [DEBUG]: Logger name: __main__
+2025-09-10 12:21:52,145 (event_logging:166) [DEBUG]: Log filename: ../data/myrobot_model_MixAll/track_performance/20250910T122152/track_trajectory.log
+2025-09-10 12:21:52,145 (event_logging:168) [DEBUG]: Command: python track_trajectory.py ../data/myrobot_model_MixAll/trained_model.joblib -r ../data/recorded_trajectory/csv/reference_trajectory_6.csv -c config/affetto.toml -j 0 -f 30 -n 1 -v
+2025-09-10 12:21:52,145 (track_trajectory:469) [INFO]: Output directory: ../data/myrobot_model_MixAll/track_performance/20250910T122152
+2025-09-10 12:21:52,145 (data_handling:162) [DEBUG]: Directory created: ../data/myrobot_model_MixAll/track_performance/20250910T122152
+2025-09-10 12:21:52,146 (data_handling:152) [DEBUG]: Symlink created: ../data/myrobot_model_MixAll/track_performance/latest -> /home/hosodalab2/Desktop/MyRobot/apps/../data/myrobot_model_MixAll/track_performance/20250910T122152
+2025-09-10 12:21:52,146 (data_handling:162) [DEBUG]: Directory created: ../data/myrobot_model_MixAll/track_performance/20250910T122152/config
+2025-09-10 12:21:52,146 (data_handling:180) [DEBUG]: Robot config copied: config/affetto.toml -> ../data/myrobot_model_MixAll/track_performance/20250910T122152/config
+2025-09-10 12:21:52,146 (track_trajectory:472) [DEBUG]: Parsed arguments: Namespace(base_dir='/home/hosodalab2/Desktop/MyRobot/affetto-nn-ctrl/data', config='config/affetto.toml', joints=['0'], sfreq=None, cfreq=30.0, init_config=None, init_duration=None, init_duration_keep_steady=None, init_manner=None, q_init=None, ca_init=None, cb_init=None, model='../data/myrobot_model_MixAll/trained_model.joblib', reference_files=['../data/recorded_trajectory/csv/reference_trajectory_6.csv'], glob_pattern='*.csv', preview_steps=0, smoothness=None, duration=None, n_repeat=1, output=None, reference_prefix='reference', output_prefix='tracked_trajectory', overwrite=False, label='track_performance', sublabel=None, split_by_date=True, specify_date=None, make_latest_symlink=True, verbose=1)
+2025-09-10 12:21:52,147 (control_utility:44) [INFO]: Loaded config: config/affetto.toml
+2025-09-10 12:21:52,147 (control_utility:45) [DEBUG]: sensor frequency: None, control frequency: 30.0
+2025-09-10 12:21:52,147 (control_utility:53) [DEBUG]: Controller created.
+2025-09-10 12:21:52,147 (control_utility:82) [DEBUG]: Default logger created.
+2025-09-10 12:21:52,147 (track_trajectory:143) [DEBUG]: Loading config file: config/affetto.toml
+2025-09-10 12:21:52,147 (track_trajectory:144) [DEBUG]: Controller created: sfreq=None cfreq=30.0
+2025-09-10 12:21:52,147 (track_trajectory:145) [DEBUG]: Default logger created: DOF=13

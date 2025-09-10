@@ -1,0 +1,52 @@
+=== START ===
+Loading model: data/myrobot_model/trained_model.joblib
+Loaded model type: <class 'affetto_nn_ctrl.model_utility.TrainedModel'>
+
+Model attributes present:
+  adapter True
+  scaler False
+  regressor False
+  pipeline False
+  named_steps False
+
+Scaler:
+ No scaler found
+
+Regressor:
+ No regressor found
+
+Adapter:
+ adapter present: True
+ adapter.params type: <class 'affetto_nn_ctrl.model_utility.PreviewRefParams'>
+PreviewRefParams(active_joints=[5],
+                 dt=0.03333333333,
+                 ctrl_step=1,
+                 preview_step=3,
+                 include_dqdes=False)
+
+CSV check:
+ CSV exists: True
+ columns present: ['caper', 'cbper', 'pa', 'pb']
+
+Statistics:
+             caper        cbper           pa           pb
+count  3000.000000  3000.000000  3000.000000  3000.000000
+mean     64.901924    55.098076   390.283522   331.431216
+std       8.317514     8.317514    50.048798    50.039321
+min      47.886248    38.993688   287.650183   232.979853
+25%      59.126689    48.737437   355.076923   293.117216
+50%      64.940844    55.059156   390.430403   331.204212
+75%      71.262563    60.873311   427.970696   366.739927
+max      81.006312    72.113752   487.014652   433.437729
+
+mean(caper-cbper)= 9.803848077125346
+mean(pa-pb)= 58.852306166056174
+
+First 5 rows:
+       caper      cbper          pa          pb
+0  60.000000  60.000000  361.090659  360.908425
+1  60.003092  59.996908  362.001832  361.090659
+2  60.010590  59.989410  360.726190  359.450549
+3  60.023877  59.976123  359.815018  359.815018
+4  60.044400  59.955600  361.090659  359.997253
+=== END ===
