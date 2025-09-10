@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3　range of motionを測る機能も兼ねている
 """Python equivalent of integrated_sensor_sin.cpp (DAC direct control)
 env PYTHONPATH=/home/hosodalab2/Desktop/MyRobot/src uv run python -u apps/integrated_sensor_sin_python.py --encoder-invert --center-hold-s 1.0
 """

@@ -4,7 +4,8 @@ from __future__ import annotations
 # Rewritten to use MyRobot hardware stack (apps/myrobot_lib) instead of affetto controller.
 # Core algorithm is preserved: load reference trajectory -> generate qdes/dqdes over time ->
 # real-time loop to track with PID -> log data -> repeat per reference file.
-#/home/hosodalab2/Desktop/MyRobot/.venv-fix/bin/python -m apps.track_trajectory data/myrobot_model_MixAll/trained_model.joblib -r data/recorded_trajectory/csv/reference_trajectory_6.csv -n 1 --interval-ms 33.33333333 -T 30
+#env PYTHONPATH=/home/hosodalab2/Desktop/MyRobot uv run python -u apps/track_trajectory.py data/myrobot_model_MixAll/trained_model.joblib -r data/recorded_trajectory/csv/reference_trajectory_5.csv -T 20 -n 1 -v
+
 
 import argparse
 import csv
@@ -15,6 +16,10 @@ from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 import sys
+import threading
+from collections import deque
+import shutil
+
 # Ensure project root and src are on sys.path so local packages (apps.myrobot_lib) can be imported
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _SRC_PATH = _PROJECT_ROOT / 'src'
@@ -182,6 +187,7 @@ def track_motion_trajectory(
     reference: Reference,
     duration: float,
     data_logger: DataLogger,
+    sweep_logger: DataLogger | None = None,
     header_text: str = "",
     loop_interval_ms: float = cfg.DEFAULT_LOOP_INTERVAL_MS,
     *,
@@ -307,79 +313,84 @@ def track_motion_trajectory(
     except Exception:
         expected_n_features = None
 
-    # helper to read encoder degrees (apply poll, ppr, invert, zero)
+    # helper to read encoder degrees using collect_data_myrobot method
     def _read_enc_deg() -> float:
-        if enc is None:
-            return 0.0
-        try:
-            if hasattr(enc, "poll"):
-                try:
-                    enc.poll()
-                except Exception:
-                    pass
-            if hasattr(enc, "degrees"):
-                try:
-                    val = enc.degrees(enc_ppr)  # type: ignore[arg-type]
-                except TypeError:
-                    val = enc.degrees()  # type: ignore[misc]
-            else:
-                val = 0.0
-        except Exception:
-            val = 0.0
-        try:
-            if enc_invert:
-                val = -float(val)
-            val = float(val) - float(enc_zero_deg)
-        except Exception:
-            val = float(val)
-        return float(val)
+        return _read_angle(enc, enc_invert, enc_zero_deg, enc_ppr)
 
     last_q_meas = _read_enc_deg()
 
+    # If a separate sweep_logger was provided, run ROM sweep first
+    if sweep_logger is not None:
+        try:
+            sweep_csv_path = sweep_logger.open_file()
+        except Exception:
+            sweep_csv_path = None
+    else:
+        sweep_csv_path = None
+
+    # Always perform the sweep for hardware settling/verification, but only record if sweep_logger provided
+    try:
+        _perform_rom_sweep(dac, adc, enc, ldc_sensors, enc_zero_deg, enc_invert, enc_ppr, (sweep_logger if sweep_logger is not None else None), t0, verbose)
+    except Exception:
+        pass
+
+    # If a sweep CSV was created, plot it
+    if sweep_csv_path:
+        try:
+            plot_csv(sweep_csv_path)
+        except Exception:
+            pass
+
+    # Re-center valves -> re-capture zero -> reset timebase
+    try:
+        if dac is not None:
+            center_valve_pct = 60.0
+            try:
+                dac.set_channels(center_valve_pct, center_valve_pct)
+            except Exception:
+                pass
+            time.sleep(1.0)
+            try:
+                enc_zero_new = _capture_zero(enc, enc_invert, enc_ppr)
+                enc_zero_deg = enc_zero_new
+                print(f"[INFO] Re-captured encoder zero after sweep: {enc_zero_deg:.3f} deg", flush=True)
+            except Exception:
+                pass
+        # Reset time base
+        t0 = time.perf_counter()
+        next_tick = t0
+        last_q_meas = _read_angle(enc, enc_invert, enc_zero_deg, enc_ppr)
+    except Exception:
+        pass
+    # Start continuous encoder poller to avoid missing readings
+    poller = EncoderPoller(enc, enc_invert, enc_zero_deg, enc_ppr, interval_s=0.00015, verbose=verbose)
+    try:
+        poller.start()
+    except Exception:
+        poller = None  # fallback if thread cannot start
+    last_poll_ts = time.perf_counter()
+
     while True:
         now = time.perf_counter()
+        # maintain cadence
         if now < next_tick:
-            # Poll encoder between frames to avoid missing edges (matches integrated_sensor_sin_python).
-            # This helps capture fast quadrature transitions that would otherwise be lost when
-            # sleeping for the whole frame interval. Polling interval ~150µs as in the integrated script.
-            if enc is not None:
-                poll_until = next_tick
-                while time.perf_counter() < poll_until:
-                    try:
-                        if hasattr(enc, "poll"):
-                            try:
-                                enc.poll()
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-                    # Optional: print a raw-tick estimate for quick debugging. Limit prints by _debug_left
-                    if verbose and _debug_left > 0:
-                        try:
-                            raw = None
-                            # Try several common raw-tick attribute/method names used by various encoder impls
-                            if hasattr(enc, "counts"):
-                                raw = enc.counts if not callable(enc.counts) else enc.counts()
-                            elif hasattr(enc, "count"):
-                                raw = enc.count()
-                            elif hasattr(enc, "ticks"):
-                                raw = enc.ticks if not callable(enc.ticks) else enc.ticks()
-                            elif hasattr(enc, "position"):
-                                raw = enc.position if not callable(enc.position) else enc.position()
-                            else:
-                                # Fallback: read degrees and convert to approximate tick count
-                                try:
-                                    d = enc.degrees(enc_ppr)
-                                except TypeError:
-                                    d = enc.degrees()
-                                raw = float(d) * float(enc_ppr) / 360.0
-                            print(f"[ENC-POLL] t={time.perf_counter()-t0:6.3f}s raw_ticks={raw}", flush=True)
-                        except Exception:
-                            pass
-                    time.sleep(0.00015)
-            # Sleep remaining time (if any) to maintain cadence
             time.sleep(max(0.0, next_tick - now))
             now = time.perf_counter()
+        # Read encoder from continuous poller (no misses)
+        if poller is not None:
+            stats = poller.get_stats_since(last_poll_ts)
+            if stats is not None:
+                enc_min, enc_max, enc_last, last_ts = stats
+                q_meas = enc_last
+                last_poll_ts = last_ts
+                if verbose >= 2:
+                    print(f"[ENC] t={now - t0:6.3f}s enc(last)={enc_last:.6f} (min={enc_min:.3f}, max={enc_max:.3f})", flush=True)
+            else:
+                q_meas = _read_angle(enc, enc_invert, enc_zero_deg, enc_ppr)
+        else:
+            # fallback
+            q_meas = _read_angle(enc, enc_invert, enc_zero_deg, enc_ppr)
+
         t = now - t0
         if duration > 0 and t >= duration:
             break
@@ -388,12 +399,17 @@ def track_motion_trajectory(
         # desired (degrees for logging; adapter unit conversion happens in qdes_vec_func)
         qdes = float(qdes_func(t)[0])
         dqdes = float(dqdes_func(t)[0])
-        # measured encoder (degrees)
-        q_meas = _read_enc_deg()
+        
+        # measured encoder (degrees) - moved after q_meas is determined above
+        if 'q_meas' not in locals():
+            q_meas = _read_enc_deg()
+            
         # Verbose encoder confirmation (first few loops)
-        if _debug_left > 0 and verbose:
+        if verbose:
             try:
-                print(f"[ENC] t={t:6.3f}s q_meas={q_meas:.6f} deg (raw last_q_meas={last_q_meas:.6f})", flush=True)
+                # Add encoder synchronization debug info
+                valve_state = f"a={a_pct:.1f}% b={b_pct:.1f}%" if 'a_pct' in locals() and 'b_pct' in locals() else "valve=unknown"
+                print(f"[ENC] t={t:6.3f}s q_meas={q_meas:.6f} deg (Δq={q_meas-last_q_meas:.6f}) {valve_state}", flush=True)
             except Exception:
                 pass
         dq_meas = (q_meas - last_q_meas) / dt_prev if dt_prev > 0 else 0.0
@@ -504,8 +520,8 @@ def track_motion_trajectory(
             # Otherwise fall back to adapter.make_ctrl_input if available.
             a_pct = b_pct = None
             if y_arr.shape[1] == 2:
-                # Assume model outputs raw control values in range 0..5 for ca/cb.
-                # Scale to percent (0..100) by (raw / 5.0 * 100.0). Clip raw to 0..5 to avoid unexpected values.
+                # Model outputs raw control values in range 0-5V for ca/cb.
+                # Scale to percent (0-100) by (raw / 5.0 * 100.0). Clip raw to 0-5 to avoid unexpected values.
                 try:
                     raw_a = float(y_arr[0, 0])
                 except Exception:
@@ -514,6 +530,12 @@ def track_motion_trajectory(
                     raw_b = float(y_arr[0, 1])
                 except Exception:
                     raw_b = 0.0
+                
+                # Debug: print raw model outputs to understand the scale
+                if _debug_left > 0 and verbose:
+                    print(f"[DEBUG] Raw model outputs: raw_a={raw_a:.6f}, raw_b={raw_b:.6f}", flush=True)
+                
+                # Clamp to 0-5V range and convert to percentage
                 raw_a = max(0.0, min(5.0, raw_a))
                 raw_b = max(0.0, min(5.0, raw_b))
                 a_pct = (raw_a / 5.0) * 100.0
@@ -529,10 +551,10 @@ def track_motion_trajectory(
 
             # Determine clamp bounds: prefer controller attributes if present, else config constants
             try:
-                min_pct = float(getattr(controller, "min_pct", cfg.VALVE_MIN))
+                min_pct = float(getattr(controller, "min_pct", 20.0))
                 max_pct = float(getattr(controller, "max_pct", cfg.VALVE_MAX))
             except Exception:
-                min_pct = float(cfg.VALVE_MIN); max_pct = float(cfg.VALVE_MAX)
+                min_pct = 20.0; max_pct = float(cfg.VALVE_MAX)
 
             # Clamp within allowed range
             a_pct = max(min_pct, min(max_pct, float(a_pct)))
@@ -552,9 +574,9 @@ def track_motion_trajectory(
                 try:
                     print(f"[DEBUG] y_sample={np.asarray(y).ravel()[:8]}", flush=True)
                     if y_arr.shape[1] == 2:
-                        print(f"[DEBUG] raw_model_a={raw_a:.3f} raw_model_b={raw_b:.3f} -> a_pct_model={a_pct:.3f} b_pct_model={b_pct:.3f}", flush=True)
-                    else:
-                        print(f"[DEBUG] a_pct_model={a_pct:.3f} b_pct_model={b_pct:.3f}", flush=True)
+                        print(f"[DEBUG] raw_model (0-5V): a={raw_a:.3f} b={raw_b:.3f} -> scaled (%): a={a_pct:.3f} b={b_pct:.3f}", flush=True)
+                    print(f"[DEBUG] final a_pct={a_pct:.3f} b_pct={b_pct:.3f} (clamped to [{min_pct:.1f}, {max_pct:.1f}])", flush=True)
+                    print(f"[DEBUG] q_des={qdes:.3f} q_meas={q_meas:.3f} error={qdes-q_meas:.3f} deg", flush=True)
                 except Exception:
                     pass
                 _debug_left -= 1
@@ -599,6 +621,13 @@ def track_motion_trajectory(
             row.extend(ldc_vals)
         row.append(q_meas)
         data_logger.write_row(row)
+
+    # Stop poller before returning
+    try:
+        if poller is not None:
+            poller.stop()
+    except Exception:
+        pass
 
     # end loop — return path
     return csv_path
@@ -652,7 +681,7 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--kd", type=float, default=cfg.DEFAULT_KD)
     parser.add_argument("--center", type=float, default=cfg.VALVE_CENTER)
     parser.add_argument("--span", type=float, default=cfg.VALVE_SPAN)
-    parser.add_argument("--min-valve", type=float, default=cfg.VALVE_MIN)
+    parser.add_argument("--min-valve", type=float, default=20.0, help="Minimum valve percent (default 20)")
     parser.add_argument("--max-valve", type=float, default=cfg.VALVE_MAX)
     # Encoder options (align with collect_data_myrobot)
     parser.add_argument("--ppr", type=int, default=cfg.ENCODER_PPR, help="Encoder PPR per channel")
@@ -678,6 +707,276 @@ def parse() -> argparse.Namespace:
         help="Loop interval in milliseconds (dt = interval_ms/1000).",
     )
     return parser.parse_args()
+
+
+# --- Encoder utility functions (matching collect_data_myrobot.py exactly) ---
+def _capture_zero(enc, invert: bool, ppr: int) -> float:
+    """Sample encoder briefly and return averaged angle (after optional invert) as zero offset."""
+    if enc is None:
+        return 0.0
+    t0 = time.perf_counter()
+    samples: list[float] = []
+    while time.perf_counter() - t0 < 0.08:
+        try:
+            enc.poll()
+            a = enc.degrees(ppr)
+            if invert:
+                a = -a
+            samples.append(a)
+        except Exception:
+            pass
+        time.sleep(0.002)
+    if not samples:
+        try:
+            enc.poll()
+            a = enc.degrees(ppr)
+            if invert:
+                a = -a
+            return a
+        except Exception:
+            return 0.0
+    return sum(samples) / len(samples)
+
+
+def _read_angle(enc, invert: bool, zero_deg: float, ppr: int) -> float:
+    """Read current encoder angle, apply invert and zero offset."""
+    a = 0.0
+    if enc is not None:
+        try:
+            enc.poll()
+            a = enc.degrees(ppr)
+        except Exception:
+            a = 0.0
+    if invert:
+        a = -a
+    return a - (zero_deg if zero_deg is not None else 0.0)
+
+
+def _poll_until_last(enc, enc_invert: bool, enc_zero: float | None, enc_ppr: int, poll_until: float, verbose: int = 0) -> float | None:
+    """Poll encoder until poll_until and return last measured angle (matches ROM sweep semantics).
+
+    Uses enc.poll(); enc.degrees(ppr), applies invert and zero offset, polls at ~150µs.
+    """
+    if enc is None:
+        return None
+    last_v = None
+    while time.perf_counter() < poll_until:
+        try:
+            enc.poll()
+            a = enc.degrees(enc_ppr)
+            if enc_invert:
+                a = -a
+            a = a - (enc_zero if enc_zero is not None else 0.0)
+            last_v = a
+            if verbose >= 2 and last_v is not None:
+                print(f"[POLL] enc_deg={last_v:.3f}", flush=True)
+        except Exception:
+            pass
+        time.sleep(0.00015)
+    return last_v
+
+
+class EncoderPoller:
+    """Background encoder poller to avoid missing readings between frames.
+
+    Polls enc at high frequency (~150us), applies invert and zero, and stores
+    timestamped samples in a ring buffer. The main loop can then fetch the
+    most recent value (and min/max) since the last frame.
+    """
+    def __init__(self, enc, invert: bool, zero_deg: float | None, ppr: int, interval_s: float = 0.00015, maxlen: int = 20000, verbose: int = 0) -> None:
+        self.enc = enc
+        self.invert = bool(invert)
+        self.zero = float(zero_deg) if zero_deg is not None else 0.0
+        self.ppr = int(ppr)
+        self.interval_s = float(interval_s)
+        self.verbose = int(verbose)
+        self._buf: deque[tuple[float, float]] = deque(maxlen=int(maxlen))
+        self._last: tuple[float, float] | None = None
+        self._lock = threading.Lock()
+        self._running = False
+        self._th: threading.Thread | None = None
+
+    def update_zero(self, zero_deg: float | None) -> None:
+        self.zero = float(zero_deg) if zero_deg is not None else 0.0
+
+    def _read_once(self) -> float | None:
+        if self.enc is None:
+            return None
+        try:
+            self.enc.poll()
+            a = self.enc.degrees(self.ppr)
+        except Exception:
+            return None
+        if self.invert:
+            a = -a
+        return a - self.zero
+
+    def _loop(self) -> None:
+        while self._running:
+            ts = time.perf_counter()
+            v = self._read_once()
+            if v is not None:
+                with self._lock:
+                    self._buf.append((ts, v))
+                    self._last = (ts, v)
+                    if self.verbose >= 3:
+                        print(f"[ENC-POLLER] ts={ts:.6f} v={v:.3f}", flush=True)
+            # keep cadence
+            try:
+                time.sleep(self.interval_s)
+            except Exception:
+                pass
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._th = threading.Thread(target=self._loop, name="EncoderPoller", daemon=True)
+        self._th.start()
+
+    def stop(self, timeout: float | None = 1.0) -> None:
+        self._running = False
+        th = self._th
+        if th is not None:
+            try:
+                th.join(timeout=timeout)
+            except Exception:
+                pass
+            self._th = None
+
+    def get_last(self) -> tuple[float, float] | None:
+        with self._lock:
+            return None if self._last is None else (self._last[1], self._last[0])
+
+    def get_stats_since(self, since_ts: float) -> tuple[float, float, float, float] | None:
+        """Return (min, max, last_value, last_ts) for samples newer than since_ts.
+        If no new samples are available, return the latest sample if present.
+        """
+        with self._lock:
+            if not self._buf:
+                return None
+            # collect samples newer than since_ts
+            vals: list[tuple[float, float]] = [item for item in self._buf if item[0] > since_ts]
+            if not vals:
+                # no fresh sample, return the most recent
+                last_ts, last_v = self._buf[-1]
+                return (last_v, last_v, last_v, last_ts)
+            ts_list = [ts for ts, _ in vals]
+            v_list = [v for _, v in vals]
+            vmin = float(min(v_list))
+            vmax = float(max(v_list))
+            last_ts = float(ts_list[-1])
+            last_v = float(v_list[-1])
+            return (vmin, vmax, last_v, last_ts)
+
+
+def _perform_rom_sweep(dac, adc, enc, ldc_sensors, enc_zero: float, enc_invert: bool, enc_ppr: int, data_logger: DataLogger | None, t0: float, verbose: int = 0) -> None:
+    """Perform range-of-motion sweep and record every step into the provided DataLogger.
+
+    This function polls the encoder at high frequency (matches ROM sweep semantics)
+    and writes one CSV row per step into the provided DataLogger if provided.
+    If data_logger is None the sweep still executes (valve commands & polling)
+    but no CSV rows are written or plotted.
+    """
+    if dac is None or enc is None:
+        return
+
+    print("[INFO] Performing range-of-motion sweep: 60/60 -> 20/100 -> 100/20 -> 60/60", flush=True)
+
+    # Sweep sequence (unchanged)
+    ramps = [((60.0, 60.0), (20.0, 100.0)), ((20.0, 100.0), (100.0, 20.0)), ((100.0, 20.0), (60.0, 60.0))]
+
+    # Timing: 5s total, 50ms steps
+    total_sweep_time = 5.0
+    step_dt = 0.05
+    per_ramp_time = max(0.5, total_sweep_time / len(ramps))
+
+    for ramp_idx, ((start_a, start_b), (end_a, end_b)) in enumerate(ramps):
+        steps = max(1, int(per_ramp_time / step_dt))
+        for s in range(steps + 1):
+            frac = float(s) / float(steps)
+            a_pct = start_a + (end_a - start_a) * frac
+            b_pct = start_b + (end_b - start_b) * frac
+
+            # Set valve command
+            try:
+                dac.set_channels(a_pct, b_pct)
+            except Exception:
+                pass
+
+            # High-frequency polling during this step — keep encoder polled but DO NOT
+            # accumulate min/max. Capture the last reading for logging.
+            step_start = time.perf_counter()
+            poll_until = step_start + step_dt
+            last_v = None
+            while time.perf_counter() < poll_until:
+                try:
+                    enc.poll()
+                    a = enc.degrees(enc_ppr)
+                    if enc_invert:
+                        a = -a
+                    a = a - (enc_zero if enc_zero is not None else 0.0)
+                    last_v = a
+                    if verbose >= 2 and last_v is not None:
+                        print(f"[SWEEP-POLL] a={a_pct:.1f}% b={b_pct:.1f}% enc_deg={last_v:.3f}", flush=True)
+                except Exception:
+                    pass
+                time.sleep(0.00015)  # ~150µs polling interval
+
+            # Read ADC once for this step (if available)
+            adc_vals: list[float | int] = []
+            pa = pb = 0.0
+            if adc is not None and hasattr(adc, "read_pair"):
+                try:
+                    raw0, volt0, kpa0, raw1, volt1, kpa1 = adc.read_pair()
+                    adc_vals = [raw0, volt0, kpa0, raw1, volt1, kpa1]
+                    pa, pb = float(kpa0), float(kpa1)
+                except Exception:
+                    adc_vals = []
+
+            # Read LDC sensors once for this step (if available)
+            ldc_vals: list[float] = []
+            if ldc_sensors:
+                for sdev in ldc_sensors:
+                    try:
+                        v = float(sdev.read_ch0_induct_uH())
+                    except Exception:
+                        v = float("nan")
+                    ldc_vals.append(v)
+
+            # Build CSV row consistent with main loop format only if a data_logger was provided:
+            # [ms, a_pct, b_pct, qdes, pid_u, <adc vals...>, <ldc vals...>, enc_deg]
+            ms = int(round((time.perf_counter() - t0) * 1000.0))
+            row: list[float | int | str] = [ms, a_pct, b_pct, "", ""]
+            if adc_vals:
+                row.extend(adc_vals)
+            if ldc_vals:
+                row.extend(ldc_vals)
+            row.append(last_v if last_v is not None else "")
+
+            # Write only if a DataLogger was provided (user requested recording)
+            if data_logger is not None:
+                try:
+                    data_logger.write_row(row)
+                except Exception:
+                    pass
+
+            # Step summary (no min/max)
+            if verbose >= 1:
+                if last_v is not None:
+                    print(f"[SWEEP] ramp{ramp_idx+1} step{s}/{steps} a={a_pct:.1f}% b={b_pct:.1f}% enc={last_v:.3f}", flush=True)
+                else:
+                    print(f"[SWEEP] ramp{ramp_idx+1} step{s}/{steps} a={a_pct:.1f}% b={b_pct:.1f}% enc=none", flush=True)
+
+            # Ensure step timing
+            remaining = poll_until - time.perf_counter()
+            if remaining > 0:
+                time.sleep(remaining)
+
+    # Intentionally DO NOT return valves to center here. Leave the last
+    # commanded valve percentages in place so the main loop continues from
+    # the sweep endpoint without changing air pressure.
+    return
 
 
 def main() -> None:
@@ -723,53 +1022,33 @@ def main() -> None:
         max_pct=args.max_valve,
     )
 
-    # Startup sequence: center valves -> capture encoder zero -> short wait
+    # --- Startup sequence following collect_data_myrobot pattern ---
     enc_zero = args.zero_deg
     try:
-        # Set initial valves to 60% and hold while capturing encoder zero (user requested behavior)
+        # Set initial valves to center (60%) and settle
         if dac is not None:
-            init_valve_pct = 60.0
-            dac.set_channels(init_valve_pct, init_valve_pct)
-            print(f"[INFO] Initial valves set to {init_valve_pct:.1f}% and will be held while capturing encoder zero", flush=True)
+            center_valve_pct = 60.0
+            dac.set_channels(center_valve_pct, center_valve_pct)
+            print(f"[INFO] Initial valves set to {center_valve_pct:.1f}% for encoder zero capture", flush=True)
         time.sleep(1.0)
+        
+        # Capture encoder zero using collect_data_myrobot method
         if args.zero_at_start and enc is not None and enc_zero is None:
             try:
-                # sample briefly similar to record_trajectory
-                t0 = time.perf_counter()
-                vals = []
-                while time.perf_counter() - t0 < 0.08:
-                    try:
-                        enc.poll()
-                        try:
-                            a = enc.degrees(args.ppr)
-                        except TypeError:
-                            a = enc.degrees()
-                        if args.encoder_invert:
-                            a = -a
-                        vals.append(float(a))
-                    except Exception:
-                        pass
-                    time.sleep(0.002)
-                if vals:
-                    enc_zero = sum(vals) / len(vals)
-                else:
-                    try:
-                        enc.poll()
-                        try:
-                            a = enc.degrees(args.ppr)
-                        except TypeError:
-                            a = enc.degrees()
-                        if args.encoder_invert:
-                            a = -a
-                        enc_zero = float(a)
-                    except Exception:
-                        enc_zero = 0.0
-                print(f"[INFO] Captured encoder zero: {float(enc_zero):.3f} deg", flush=True)
+                enc_zero = _capture_zero(enc, args.encoder_invert, args.ppr)
+                print(f"[INFO] Captured encoder zero: {enc_zero:.3f} deg", flush=True)
             except Exception:
-                enc_zero = enc_zero if enc_zero is not None else 0.0
+                enc_zero = 0.0
         if enc_zero is None:
             enc_zero = 0.0
+        
+        # NOTE: ROM sweep execution is performed per-reference inside track_motion_trajectory.
+        # Do not run the sweep here at startup to avoid duplicate sweeps and to keep
+        # sweep-recording optional.
+        
+        # Small settle after potential startup actions
         time.sleep(0.5)
+    
     except Exception:
         if enc_zero is None:
             enc_zero = 0.0
@@ -823,10 +1102,17 @@ def main() -> None:
         # Create per-reference subdir to mimic original layout
         ref_dir = output_dir / f"reference_{i:03d}"
         ref_dir.mkdir(parents=True, exist_ok=True)
+        # Centralized destinations for tracked outputs (CSV and graphs)
+        base_dest = Path('/home/hosodalab2/Desktop/MyRobot/data/tracked_trajectory')
+        csv_dest = base_dest / 'csv'
+        graph_dest = base_dest / 'graph'
+        csv_dest.mkdir(parents=True, exist_ok=True)
+        graph_dest.mkdir(parents=True, exist_ok=True)
+
         # Prepare logger header (ADC/LDC/ENC presence)
         header = make_header(has_adc=adc is not None, ldc_addrs=[getattr(s, 'addr', 0) for s in ldc_sensors], has_enc=enc is not None)
 
-        # Determine starting index based on existing files
+        # Determine starting index based on existing files in centralized CSV folder
         def _next_idx(d: Path) -> int:
             existing = sorted([p for p in d.glob(f"{args.output_prefix}_*.csv")])
             max_idx = 0
@@ -839,7 +1125,7 @@ def main() -> None:
                     pass
             return max_idx + 1
 
-        base_idx = _next_idx(ref_dir)
+        base_idx = _next_idx(csv_dest)
 
         for j in range(args.n_repeat):
             # Reset controller state per run
@@ -848,7 +1134,12 @@ def main() -> None:
             except Exception:
                 pass
             # Prepare logger
-            logger = DataLogger(str(ref_dir), args.output_prefix, header)
+            # Write tracked CSV directly into centralized csv_dest with sequential numbering
+            current_idx = base_idx + j
+            output_name = f"{args.output_prefix}_{current_idx}"
+            logger = DataLogger(str(csv_dest), output_name, header)
+            # Do NOT create a separate sweep logger — perform sweep but do not record CSV/plot
+            sweep_logger = None
             # Track
             header_text = f"[Ref:{i}/{len(ref_paths)}(Cnt:{j + 1}/{args.n_repeat})] Tracking..."
             csv_path = track_motion_trajectory(
@@ -860,6 +1151,7 @@ def main() -> None:
                 ref,
                 duration,
                 logger,
+                sweep_logger,
                 header_text=header_text,
                 loop_interval_ms=float(args.interval_ms),
                 enc_ppr=int(args.ppr),
@@ -869,8 +1161,35 @@ def main() -> None:
                 verbose=int(args.verbose),
             )
             print(f"[INFO] Motion file saved: {csv_path}")
+            # Plot (attempt) and then copy CSV+PNG to central folder
             try:
+                # Set plot title so it indicates which trained model / reference was used
+                try:
+                    import os as _os
+                    model_path = Path(args.model)
+                    model_folder = model_path.parent.name if model_path.parent.name else model_path.stem
+                    _os.environ['PLOT_TITLE'] = f"Model: {model_folder}/{model_path.name}  Ref: {ref_path.name}"
+                except Exception:
+                    pass
                 plot_csv(csv_path)
+            except Exception:
+                pass
+
+            try:
+                # The CSV is already in the centralized csv_dest folder
+                src_csv = Path(csv_path)
+                
+                # Copy PNG (assume plot_csv created a .png alongside CSV) into graph folder
+                try:
+                    png_src = src_csv.with_suffix('.png')
+                    if png_src.exists():
+                        shutil.copy2(str(png_src), str(graph_dest / png_src.name))
+                        print(f"[INFO] Plot saved: {graph_dest / png_src.name}")
+                        # Remove the original PNG from CSV folder
+                        png_src.unlink()
+                        print(f"[INFO] Removed original PNG from CSV folder: {png_src}")
+                except Exception as e:
+                    print(f"[WARN] Failed to copy/remove PNG: {e}")
             except Exception:
                 pass
 

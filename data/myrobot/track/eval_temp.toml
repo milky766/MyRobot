@@ -1,9 +1,0 @@
-[model.performance]
-model_path = "data/myrobot_model/trained_model.joblib"
-active_joints = [5]
-
-[model.performance.reference_001]
-reference_path = "data/recorded_trajectory/csv/reference_trajectory_6.csv"
-
-[[model.performance.reference_001.errors]]
-motion_path = "data/myrobot/track/reference_001/tracked_trajectory_22.csv"

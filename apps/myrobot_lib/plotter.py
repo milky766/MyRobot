@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Any
+import os
 
 def plot_csv(csv_path: str) -> str:
     try:
@@ -113,6 +114,14 @@ def plot_csv(csv_path: str) -> str:
 
     n_subplots = 5
     fig = plt.figure(figsize=(10, 12))
+
+    # If user provided PLOT_TITLE env var, use it as a suptitle so model info is visible
+    try:
+        plot_title = os.environ.get('PLOT_TITLE')
+        if plot_title:
+            fig.suptitle(plot_title)
+    except Exception:
+        pass
 
     # Angle plot
     ax1 = fig.add_subplot(n_subplots, 1, 1)
