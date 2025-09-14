@@ -39,6 +39,7 @@ import numpy as np
 from typing import Protocol, runtime_checkable, Any, cast, Callable
 import traceback
 import csv
+import subprocess
 
 # make local src importable (affetto modules)
 _PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -692,7 +693,7 @@ def parse_args():
     parser.add_argument('-t', '--t-range', nargs=2, type=float, default=None,
                         help='Optional update time range (two floats). If omitted, inferred from --speed')
     # Default random angle generation range changed to -10..30 degrees
-    parser.add_argument('-q', '--q-range', nargs=2, type=float, default=(-30, 30))
+    parser.add_argument('-q', '--q-range', nargs=2, type=float, default=(-20, 30))
     parser.add_argument('-Q', '--q-limit', nargs=2, type=float, default=cfg.DEFAULT_Q_LIMIT)
     parser.add_argument('-p', '--profile', default='trapezoidal')
     parser.add_argument('-n', '--n-repeat', default=3, type=int)
@@ -733,11 +734,59 @@ def parse_args():
     parser.add_argument('--speed', choices=['fast', 'middle', 'slow'], default='middle',
                         help='Preset cadence: fast/middle/slow. Used to infer -t/--dwell if not provided')
     parser.add_argument('--force-affetto', dest='force_affetto', action='store_true', default=False, help='Force use of colocated affetto RandomTrajectory if available')
+
+    # Batch automation options: run full matrix {step,trapezoidal} x {fast,middle,slow}
+    parser.add_argument('--batch', action='store_true', default=False, help='Run full batch of predefined profile/speed combinations')
+    parser.add_argument('--batch-runs', type=int, default=100, help='Number of repeats per combination when --batch is used')
+    parser.add_argument('--batch-duration', type=float, default=100.0, help='Duration (s) per run when --batch is used')
+    parser.add_argument('--batch-quiet', action='store_true', default=False, help='Suppress child process output during batch')
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    # Batch orchestration: invoke this script repeatedly for the full matrix of
+    # profiles and speeds. Child invocations reuse the same script and thus
+    # perform encoder zeroing per run. When --batch-quiet is set child stdout/stderr
+    # are suppressed to reduce terminal I/O load.
+    try:
+        if getattr(args, 'batch', False):
+            import subprocess, sys
+            profiles = ['step', 'trapezoidal']
+            speeds = ['fast', 'middle', 'slow']
+            script = os.path.abspath(__file__)
+            for profile in profiles:
+                for speed in speeds:
+                    print(f"[INFO] Batch start: profile={profile} speed={speed} runs={args.batch_runs} duration={args.batch_duration}s", flush=True)
+                    cmd = [sys.executable, script,
+                           '--traj', profile,
+                           '--speed', speed,
+                           '-T', str(float(args.batch_duration)),
+                           '-n', str(int(args.batch_runs)),
+                           '-o', args.output,
+                           '--output-prefix', args.output_prefix,
+                           # ensure encoder zeroing remains enabled in children
+                           '--zero-at-start']
+                    # propagate a small set of commonly adjusted options
+                    for opt_name, flag in (('min_valve', '--min-valve'), ('max_valve', '--max-valve'), ('center', '--center'), ('span', '--span'), ('kp', '--kp'), ('ki', '--ki'), ('kd', '--kd'), ('ppr', '--ppr')):
+                        v = getattr(args, opt_name, None)
+                        if v is not None:
+                            cmd += [flag, str(v)]
+                    try:
+                        if args.batch_quiet:
+                            ret = subprocess.call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        else:
+                            ret = subprocess.call(cmd)
+                        print(f"[INFO] Batch done: profile={profile} speed={speed} exit={ret}", flush=True)
+                    except Exception as e:
+                        print(f"[ERROR] Batch failed for profile={profile} speed={speed}: {e!r}", flush=True)
+            print('[INFO] Batch complete', flush=True)
+            return 0
+    except Exception:
+        # if batch orchestration fails, continue to normal single-run behavior
+        pass
+
     # If user asked for a 'step' trajectory, prefer step profile unless explicitly overridden
     try:
         if getattr(args, 'traj', None) == 'step':
